@@ -20,7 +20,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import CalculadoraCostosPartida from '@/components/cotizaciones/CalculadoraCostosPartida';
 import { Calculator, ChevronDown, ChevronUp } from 'lucide-react';
-import { BRANDINGS, DEFAULT_BRANDING_ID } from '@/lib/brandingConfig';
+import { BRANDINGS, DEFAULT_BRANDING_ID, MARCAS_COMERCIALES, DEFAULT_MARCA_COMERCIAL } from '@/lib/brandingConfig';
 // PDF y subida a Drive pausados temporalmente (reactivar cuando se corrija el servicio)
 // import jsPDF from 'jspdf';
 // import { uploadQuotePdfToDrive } from '@/services/driveUploadService';
@@ -67,6 +67,7 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
     descuento_porcentaje: 0,
     descuento_monto: 0,
     branding: DEFAULT_BRANDING_ID,
+    marca_comercial: DEFAULT_MARCA_COMERCIAL,
   };
 
   /** Genera el siguiente folio COT-YYYY-NNNN ignorando versiones (-V2, etc.): usa el máximo numérico del año. */
@@ -148,6 +149,7 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
                     descuento_porcentaje: initialTemplate.descuento_porcentaje ?? 0,
                     descuento_monto: initialTemplate.descuento_monto ?? 0,
                     branding: initialTemplate.branding || DEFAULT_BRANDING_ID,
+                    marca_comercial: initialTemplate.marca_comercial || DEFAULT_MARCA_COMERCIAL,
                 });
                 setItems(itemsData || []);
             } else {
@@ -169,6 +171,7 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
                 ...cotizacion,
                 aplica_iva: cotizacion.aplica_iva !== false,
                 branding: cotizacion.branding || DEFAULT_BRANDING_ID,
+                marca_comercial: cotizacion.marca_comercial || DEFAULT_MARCA_COMERCIAL,
             });
         }
 
@@ -295,6 +298,7 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
         descuento_porcentaje: Math.max(0, parseFloat(formData.descuento_porcentaje || 0)),
         descuento_monto: descuentoMonto,
         branding: formData.branding || DEFAULT_BRANDING_ID,
+        marca_comercial: formData.marca_comercial || DEFAULT_MARCA_COMERCIAL,
     };
 
     try {
@@ -429,6 +433,22 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
                             <SelectContent>
                                 {BRANDINGS.map((b) => (
                                     <SelectItem key={b.id} value={b.id}>{b.nombre}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label htmlFor="marca_comercial">Marca</Label>
+                        <Select
+                            value={formData.marca_comercial || DEFAULT_MARCA_COMERCIAL}
+                            onValueChange={(value) => setFormData({ ...formData, marca_comercial: value })}
+                        >
+                            <SelectTrigger id="marca_comercial">
+                                <SelectValue placeholder="Selecciona marca" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {MARCAS_COMERCIALES.map((m) => (
+                                    <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>

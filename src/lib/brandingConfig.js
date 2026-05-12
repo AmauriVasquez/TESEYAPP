@@ -1,18 +1,5 @@
 export const BRANDINGS = [
   {
-    id: 'iihemsa',
-    nombre: 'IIHEMSA',
-    logo: '/brand-iihemsa-logo.svg',
-    colores: {
-      primario: '#1E3A8A',
-      secundario: '#0F172A',
-      acento: '#3B82F6',
-    },
-    datos: {
-      razonSocial: 'Ingeniería e Instalaciones Hidroneumáticas Eléctricas y Montajes SA de CV',
-    },
-  },
-  {
     id: 'tesey',
     nombre: 'TESEY',
     logo: '/brand-tesey-logo.png',
@@ -23,11 +10,40 @@ export const BRANDINGS = [
     },
     datos: {
       razonSocial: 'Tecnomaquila y Servicios de Yucatán',
+      rfc: 'TSY221213TIA',
+      regimenFiscal: '626 Régimen Simplificado de Confianza',
+      direccion: 'CALLE 24 # 73-4 , RESIDENCIAL XCANATUN, MERIDA,',
+      direccion2: 'YUCATAN, MEXICO, C.P. 97302',
+    },
+  },
+  {
+    id: 'iihemsa_peninsular',
+    nombre: 'IIHEMSA Peninsular',
+    logo: '/brand-iihemsa-peninsular-logo.svg',
+    colores: {
+      primario: '#1E3A8A',
+      secundario: '#0F172A',
+      acento: '#3B82F6',
+    },
+    datos: {
+      razonSocial: 'IIHEMSA Peninsular',
+      rfc: 'IPE1003058K9',
+      regimenFiscal: 'Régimen General de Ley Personas Morales',
+      direccion: 'CALLE 24 SIN NUMERO, TEMOZON NORTE,',
+      direccion2: 'MÉRIDA, YUCATÁN, MÉXICO, C.P. 97302',
     },
   },
 ];
 
-export const DEFAULT_BRANDING_ID = BRANDINGS[0].id;
+export const DEFAULT_BRANDING_ID = 'tesey';
+
+export const MARCAS_COMERCIALES = [
+  { id: 'tesey', nombre: 'TESEY' },
+  { id: 'kutra', nombre: 'KUTRA' },
+  { id: 'arkeo', nombre: 'ARKEO' },
+];
+
+export const DEFAULT_MARCA_COMERCIAL = 'tesey';
 
 export function getBrandingConfig(id) {
   return BRANDINGS.find((b) => b.id === id) || BRANDINGS[0];
