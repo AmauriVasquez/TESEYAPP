@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, Filter, Copy, CheckCircle, XCircle, MoreVertical, Edit, Trash2, Loader2, ArrowRight, User, Printer, RotateCcw, History } from 'lucide-react';
+import { Plus, Search, Filter, Copy, CheckCircle, XCircle, MoreVertical, Edit, Trash2, Loader2, ArrowRight, User, Printer, RotateCcw, History, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
@@ -29,6 +29,7 @@ import { format } from 'date-fns';
 import { formatDateTable } from '@/lib/dateUtils';
 import { notifyCotizacionAprobada } from '@/services/TelegramService';
 import { useProyectosPathPrefix } from '@/hooks/useProyectosPathPrefix';
+import { MARCAS_COMERCIALES, BRANDINGS } from '@/lib/brandingConfig';
 
 const EstatusBadge = ({ estatus }) => {
   const baseClasses = 'px-3 py-1 text-xs font-medium rounded-full inline-block';
@@ -50,6 +51,9 @@ const Cotizaciones = () => {
   const proyectosBase = useProyectosPathPrefix();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('Todos');
+  const [filterMarca, setFilterMarca] = useState('Todos');
+  const [filterEmpresa, setFilterEmpresa] = useState('Todos');
+  const [filterFechaOrden, setFilterFechaOrden] = useState('desc');
   const [cotizaciones, setCotizaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -419,14 +423,27 @@ const Cotizaciones = () => {
     return { error: null };
   };
 
-  const filteredCotizaciones = cotizaciones.filter(c => {
-    const searchLower = searchTerm.toLowerCase();
-    return (c.folio?.toLowerCase().includes(searchLower) ||
-            c.cliente_nombre?.toLowerCase().includes(searchLower) ||
-            c.cotizacion_control?.toLowerCase().includes(searchLower) ||
-            c.descripcion?.toLowerCase().includes(searchLower) ||
-            c.usuario_cotizacion?.toLowerCase().includes(searchLower));
-  });
+  const filteredCotizaciones = useMemo(() => {
+    let result = cotizaciones.filter(c => {
+      const searchLower = searchTerm.toLowerCase();
+      const matchSearch =
+        c.folio?.toLowerCase().includes(searchLower) ||
+        c.cliente_nombre?.toLowerCase().includes(searchLower) ||
+        c.cotizacion_control?.toLowerCase().includes(searchLower) ||
+        c.descripcion?.toLowerCase().includes(searchLower) ||
+        c.usuario_cotizacion?.toLowerCase().includes(searchLower);
+      const matchStatus = filterStatus === 'Todos' || c.estatus === filterStatus;
+      const matchMarca = filterMarca === 'Todos' || c.marca_comercial === filterMarca;
+      const matchEmpresa = filterEmpresa === 'Todos' || c.branding === filterEmpresa;
+      return matchSearch && matchStatus && matchMarca && matchEmpresa;
+    });
+    result = [...result].sort((a, b) => {
+      const da = new Date(a.fecha + 'T00:00:00').getTime();
+      const db = new Date(b.fecha + 'T00:00:00').getTime();
+      return filterFechaOrden === 'asc' ? da - db : db - da;
+    });
+    return result;
+  }, [cotizaciones, searchTerm, filterStatus, filterMarca, filterEmpresa, filterFechaOrden]);
 
   return (
     <>
@@ -509,10 +526,79 @@ const Cotizaciones = () => {
                         <thead className="bg-gray-50 border-b border-gray-200">
                             <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <div className="flex items-center gap-1">
+                                <span>Marca / Empresa</span>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button className={`inline-flex items-center rounded p-0.5 hover:bg-gray-200 transition-colors ${filterMarca !== 'Todos' || filterEmpresa !== 'Todos' ? 'text-blue-600' : 'text-gray-400'}`}>
+                                      <ChevronDown className="w-3.5 h-3.5" />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start" className="w-48">
+                                    <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase">Marca</div>
+                                    <DropdownMenuItem onSelect={() => setFilterMarca('Todos')} className={filterMarca === 'Todos' ? 'font-semibold text-blue-600' : ''}>
+                                      Todas
+                                    </DropdownMenuItem>
+                                    {MARCAS_COMERCIALES.map(m => (
+                                      <DropdownMenuItem key={m.id} onSelect={() => setFilterMarca(m.id)} className={filterMarca === m.id ? 'font-semibold text-blue-600' : ''}>
+                                        {m.nombre}
+                                      </DropdownMenuItem>
+                                    ))}
+                                    <div className="px-2 py-1 mt-1 text-[10px] font-semibold text-gray-400 uppercase border-t">Empresa emisora</div>
+                                    <DropdownMenuItem onSelect={() => setFilterEmpresa('Todos')} className={filterEmpresa === 'Todos' ? 'font-semibold text-blue-600' : ''}>
+                                      Todas
+                                    </DropdownMenuItem>
+                                    {BRANDINGS.map(b => (
+                                      <DropdownMenuItem key={b.id} onSelect={() => setFilterEmpresa(b.id)} className={filterEmpresa === b.id ? 'font-semibold text-blue-600' : ''}>
+                                        {b.nombre}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente / Descripción</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <div className="flex items-center gap-1">
+                                <span>Fecha</span>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button className="inline-flex items-center rounded p-0.5 hover:bg-gray-200 transition-colors text-gray-400">
+                                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${filterFechaOrden === 'asc' ? 'rotate-180' : ''}`} />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start" className="w-40">
+                                    <DropdownMenuItem onSelect={() => setFilterFechaOrden('desc')} className={filterFechaOrden === 'desc' ? 'font-semibold text-blue-600' : ''}>
+                                      Más reciente primero
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => setFilterFechaOrden('asc')} className={filterFechaOrden === 'asc' ? 'font-semibold text-blue-600' : ''}>
+                                      Más antigua primero
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estatus</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              <div className="flex items-center gap-1">
+                                <span>Estatus</span>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button className={`inline-flex items-center rounded p-0.5 hover:bg-gray-200 transition-colors ${filterStatus !== 'Todos' ? 'text-blue-600' : 'text-gray-400'}`}>
+                                      <ChevronDown className="w-3.5 h-3.5" />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start" className="w-40">
+                                    {['Todos', 'Borrador', 'Enviada', 'Aprobada', 'Rechazada'].map(s => (
+                                      <DropdownMenuItem key={s} onSelect={() => setFilterStatus(s)} className={filterStatus === s ? 'font-semibold text-blue-600' : ''}>
+                                        {s === 'Todos' ? 'Todos los estatus' : s}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                             </tr>
                         </thead>
@@ -528,6 +614,14 @@ const Cotizaciones = () => {
                                 <td className="px-6 py-4">
                                     <p className="font-mono text-sm text-blue-600">{c.folio}</p>
                                     {c.cotizacion_control && <p className="text-xs text-gray-500 font-mono">Control: {c.cotizacion_control}</p>}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <p className="font-semibold text-sm text-gray-900">
+                                    {(MARCAS_COMERCIALES.find(m => m.id === c.marca_comercial)?.nombre ?? c.marca_comercial ?? '—').toUpperCase()}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {BRANDINGS.find(b => b.id === c.branding)?.nombre ?? c.branding ?? '—'}
+                                  </p>
                                 </td>
                                 <td className="px-6 py-4">
                                 <p className="font-medium text-gray-900">{c.cliente_nombre}</p>
@@ -594,7 +688,7 @@ const Cotizaciones = () => {
                             </motion.tr>
                             )) : (
                                 <tr>
-                                    <td colSpan="6" className="text-center py-16 text-gray-500">
+                                    <td colSpan="7" className="text-center py-16 text-gray-500">
                                         <h3 className="text-lg font-medium">No hay cotizaciones aún</h3>
                                         <p className="text-sm mt-1">Crea tu primera cotización para empezar.</p>
                                     </td>

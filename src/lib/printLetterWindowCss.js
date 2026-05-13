@@ -117,6 +117,13 @@ body {
     padding-bottom: 8px !important;
   }
 
+  #print-area .print-doc-header > div:first-child {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    min-height: 80px !important;
+  }
+
   #print-area .print-doc-section {
     margin-bottom: 8px !important;
     margin-top: 0 !important;
@@ -174,8 +181,11 @@ body {
   }
 
   #print-area .print-doc-logo {
-    max-height: 52px !important;
+    max-height: 80px !important;
+    width: 176px !important;
     height: auto !important;
+    object-fit: contain !important;
+    object-position: center !important;
   }
 
   #print-area .print-doc-cell-tight {

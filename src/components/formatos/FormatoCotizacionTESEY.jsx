@@ -3,14 +3,16 @@ import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import { formatDateForPrint } from '@/lib/dateUtils';
 import { PRINT_LETTER_WINDOW_STYLES } from '@/lib/printLetterWindowCss';
-import { getBrandingConfig, getTextColor } from '@/lib/brandingConfig';
+import { getBrandingConfig, getTextColor, getMarcaColores } from '@/lib/brandingConfig';
+import { getLogoByMarca } from '@/lib/brandLogos';
 
 const FormatoCotizacionTESEY = ({ cotizacionData = {}, onPrint, hidePrintButton = false }) => {
   const printRef = useRef();
   const branding = getBrandingConfig(cotizacionData?.branding);
-  const colorPrimario = branding.colores.primario;
-  const colorSecundario = branding.colores.secundario;
-  const colorAcento = branding.colores.acento;
+  const marcaColores = getMarcaColores(cotizacionData?.marca_comercial || 'tesey');
+  const colorPrimario = marcaColores.primario;
+  const colorSecundario = marcaColores.secundario;
+  const colorAcento = marcaColores.acento;
   const colorTextoPrimario = getTextColor(colorPrimario);
 
   // --- LÓGICA DE ADAPTACIÓN DE DATOS ---
@@ -88,6 +90,12 @@ const FormatoCotizacionTESEY = ({ cotizacionData = {}, onPrint, hidePrintButton 
             <script src="https://cdn.tailwindcss.com"></script>
             <style>
               ${PRINT_LETTER_WINDOW_STYLES}
+              :root {
+                --color-primario: ${colorPrimario};
+                --color-secundario: ${colorSecundario};
+                --color-acento: ${colorAcento};
+              }
+              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             </style>
           </head>
           <body>
@@ -138,11 +146,11 @@ const FormatoCotizacionTESEY = ({ cotizacionData = {}, onPrint, hidePrintButton 
 
         {/* --- ENCABEZADO --- */}
         <header className="print-doc-header flex justify-between items-start pb-3 border-b-4 mb-3" style={{ borderBottomColor: 'var(--color-acento)' }}>
-          <div className="w-48">
+          <div className="w-48 flex items-center justify-center min-h-[64px]">
             <img
               alt={branding.nombre}
-              className="print-doc-logo h-16 w-auto object-contain"
-              src={branding.logo}
+              className="print-doc-logo h-20 w-44 object-contain object-center"
+              src={getLogoByMarca(cotizacionData?.marca_comercial || cotizacionData?.branding || 'tesey')}
               onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/200x80?text=LOGO'; }}
             />
           </div>
@@ -153,10 +161,10 @@ const FormatoCotizacionTESEY = ({ cotizacionData = {}, onPrint, hidePrintButton 
 
             {/* DATOS DE LA EMPRESA */}
             <div className="text-[10px] text-gray-500 mt-2 leading-snug">
-              <p>CALLE 24 # 73-4 , RESIDENCIAL XCANATUN, MERIDA,</p>
-              <p>YUCATAN, MEXICO, C.P. 97302</p>
-              <p>R.F.C. TSY221213TIA</p>
-              <p>REGIMEN FISCAL: 626 Régimen Simplificado de Confianza</p>
+              <p>{branding.datos?.direccion}</p>
+              {branding.datos?.direccion2 && <p>{branding.datos.direccion2}</p>}
+              <p>R.F.C. {branding.datos?.rfc}</p>
+              <p>REGIMEN FISCAL: {branding.datos?.regimenFiscal}</p>
             </div>
 
             <div className="mt-3 text-xs text-gray-500 space-y-0.5">
@@ -206,7 +214,7 @@ const FormatoCotizacionTESEY = ({ cotizacionData = {}, onPrint, hidePrintButton 
         <div className="print-doc-table-wrap flex-grow">
           <table className="w-full text-xs border-collapse">
             <thead>
-              <tr className="text-white" style={{ backgroundColor: 'var(--color-secundario)', color: colorTextoPrimario }}>
+              <tr className="text-white" style={{ backgroundColor: 'var(--color-primario)', color: '#ffffff' }}>
                 <th className="print-doc-th-tight py-1.5 px-2 text-center w-12 rounded-tl-md font-bold">#</th>
                 <th className="print-doc-th-tight py-1.5 px-2 text-left font-bold">Descripción</th>
                 <th className="print-doc-th-tight py-1.5 px-2 text-center w-20 font-bold">Cant.</th>
@@ -281,7 +289,7 @@ const FormatoCotizacionTESEY = ({ cotizacionData = {}, onPrint, hidePrintButton 
             </div>
             <div className="flex justify-between items-center pt-2 border-t border-gray-300 mt-2">
               <span className="font-bold text-sm text-gray-900">TOTAL:</span>
-              <span className="font-bold text-lg" style={{ color: 'var(--color-acento)' }}>${totalCalculated.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="font-bold text-lg" style={{ color: cotizacionData?.marca_comercial === 'tesey' ? colorAcento : colorPrimario }}>${totalCalculated.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
