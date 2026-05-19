@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import {
@@ -18,14 +18,16 @@ import {
   Menu,
   X,
   UserCog,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { usePermissions } from '@/contexts/PermissionsContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { getLogoByMarca } from '@/lib/brandLogos';
 import { cn } from '@/lib/utils';
 
 /**
- * @typedef {{ to: string, icon: React.ComponentType<{ className?: string }>, label: string, matchPrefix?: boolean, end?: boolean, isActive?: (pathname: string) => boolean }} NavEntry
+ * @typedef {{ to: string, icon: React.ComponentType<{ className?: string }>, label: string, matchPrefix?: boolean, end?: boolean, isActive?: (pathname: string) => boolean, show?: boolean }} NavEntry
  */
 
 /** @type {NavEntry[]} */
@@ -89,8 +91,53 @@ const Sidebar = ({
   isSidebarExpanded,
 }) => {
   const { signOut } = useAuth();
+  const { hasRole, can } = usePermissions();
   const location = useLocation();
   const pathname = location.pathname;
+
+  const navItems = useMemo(() => {
+    const items = mainNavItems
+      .map((entry) => {
+        if (entry.to === '/finanzas') {
+          return { ...entry, show: can('finanzas', 'ver') };
+        }
+        if (entry.to === '/ventas') {
+          return {
+            ...entry,
+            show:
+              hasRole('VENTAS') ||
+              can('clientes', 'ver') ||
+              can('prospectos', 'ver'),
+          };
+        }
+        if (entry.to === '/compras') {
+          return {
+            ...entry,
+            show:
+              can('compras', 'ver', 'ordenes') || can('compras', 'ver', 'pedidos'),
+          };
+        }
+        if (entry.to === '/activos-operativos') {
+          return { ...entry, show: can('activos', 'ver') };
+        }
+        if (entry.to === '/personal') {
+          return { ...entry, show: can('personal', 'ver') };
+        }
+        return { ...entry, show: true };
+      })
+      .filter((entry) => entry.show !== false);
+
+    if (hasRole('ADMIN_MAESTRO')) {
+      items.push({
+        to: '/admin/usuarios',
+        icon: Users,
+        label: 'Gestión de usuarios',
+        isActive: (p) => p === '/admin/usuarios' || p.startsWith('/admin/usuarios/'),
+      });
+    }
+
+    return items;
+  }, [can, hasRole]);
 
   const closeMobileIfNeeded = useCallback(() => {
     if (isSidebarOpen && typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -134,7 +181,7 @@ const Sidebar = ({
           isSidebarExpanded ? 'px-3' : 'px-2'
         )}
       >
-        {mainNavItems.map((entry) => {
+        {navItems.filter((entry) => entry.show !== false).map((entry) => {
           const Icon = entry.icon;
           const isActive = entryIsActive(pathname, entry);
           return (

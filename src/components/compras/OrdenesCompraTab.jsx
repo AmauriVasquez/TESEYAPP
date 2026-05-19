@@ -20,6 +20,7 @@ import FormatoOCImpresion from './FormatoOCImpresion';
 import NuevaOCDirectaModal from './NuevaOCDirectaModal';
 import DetalleOCModal from './DetalleOCModal';
 import { unidadImpresionPedidoItem } from '@/lib/pedidoMaterialesItemHelpers';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 
 const OPCIONES_ESTATUS = [
   { value: 'Pendiente de Validación', label: 'Pendiente de Validación', color: 'amber' },
@@ -219,9 +220,11 @@ const OrdenesCompraTab = () => {
           </div>
 
           <div className="flex justify-end">
-            <Button onClick={() => setNuevaOCDirectaOpen(true)} className="gap-1.5 h-8 px-3 text-xs md:h-10 md:px-4 md:text-sm bg-emerald-600 hover:bg-emerald-700">
-              <PlusCircle className="w-3.5 h-3.5 md:w-4 md:h-4" /> Nueva OC
-            </Button>
+            <PermissionGate modulo="compras" accion="crear" submodulo="ordenes">
+              <Button onClick={() => setNuevaOCDirectaOpen(true)} className="gap-1.5 h-8 px-3 text-xs md:h-10 md:px-4 md:text-sm bg-emerald-600 hover:bg-emerald-700">
+                <PlusCircle className="w-3.5 h-3.5 md:w-4 md:h-4" /> Nueva OC
+              </Button>
+            </PermissionGate>
           </div>
 
           <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
@@ -290,9 +293,11 @@ const OrdenesCompraTab = () => {
                               <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8 text-gray-500 hover:text-gray-700" title="Imprimir" onClick={() => handlePrintClick(oc)}>
                                 <Printer className="w-3.5 h-3.5 md:w-4 md:h-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8 text-gray-500 hover:text-red-600" title="Eliminar" onClick={() => setDeleteId(oc.id)}>
-                                <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                              </Button>
+                              <PermissionGate modulo="compras" accion="eliminar" submodulo="ordenes">
+                                <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8 text-gray-500 hover:text-red-600" title="Eliminar" onClick={() => setDeleteId(oc.id)}>
+                                  <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                </Button>
+                              </PermissionGate>
                             </div>
                           </td>
                         </tr>

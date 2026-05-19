@@ -7,7 +7,9 @@ import ProveedoresTab from '@/components/compras/ProveedoresTab';
 import OrdenesCompraTab from '@/components/compras/OrdenesCompraTab';
 import {
   Users,
+  UserPlus,
   FileText,
+  Kanban,
   ClipboardList,
   Package,
   Boxes,
@@ -78,6 +80,8 @@ export function VentasModuleLayout() {
       items={[
         { to: '/ventas/clientes', label: 'Clientes', icon: Users },
         { to: '/ventas/cotizaciones', label: 'Cotizaciones', icon: FileText },
+        { to: '/ventas/prospectos', label: 'Prospectos', icon: UserPlus },
+        { to: '/ventas/crm', label: 'CRM', icon: Kanban },
       ]}
     >
       <Outlet />

@@ -19,41 +19,62 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea"; // Asegúrate de tener este componente, si no usa <textarea>
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from "@/components/ui/use-toast";
+import { MARCAS_COMERCIALES } from '@/lib/brandingConfig';
 
 const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [usarMismoNombre, setUsarMismoNombre] = useState(false);
   const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     nombre: '',
-    nombre_contacto: '', // Nuevo campo
+    nombre_contacto: '',
     rfc: '',
     telefono: '',
     email: '',
     direccion: '',
-    observaciones: '', // Nuevo campo
+    observaciones: '',
+    marca_origen: '',
+    tipo_persona: 'moral',
+    industria: '',
+    ciudad: '',
+    estado: '',
+    fuente_origen: '',
+    notas_crm: '',
   });
 
-  // Cargar datos al editar o limpiar al crear
   useEffect(() => {
     if (open) {
       if (clienteToEdit) {
         setFormData({
           nombre: clienteToEdit.nombre || '',
-          nombre_contacto: clienteToEdit.nombre_contacto || clienteToEdit.nombre || '', // Fallback si no existía antes
+          nombre_contacto: clienteToEdit.nombre_contacto || clienteToEdit.nombre || '',
           rfc: clienteToEdit.rfc || '',
           telefono: clienteToEdit.telefono || '',
           email: clienteToEdit.email || '',
           direccion: clienteToEdit.direccion || '',
           observaciones: clienteToEdit.observaciones || '',
+          marca_origen: clienteToEdit.marca_origen || '',
+          tipo_persona: clienteToEdit.tipo_persona || 'moral',
+          industria: clienteToEdit.industria || '',
+          ciudad: clienteToEdit.ciudad || '',
+          estado: clienteToEdit.estado || '',
+          fuente_origen: clienteToEdit.fuente_origen || '',
+          notas_crm: clienteToEdit.notas_crm || '',
         });
-        setUsarMismoNombre(false); // Por defecto en false al editar para no sobrescribir sin querer
+        setUsarMismoNombre(false);
       } else {
         setFormData({
           nombre: '',
@@ -63,29 +84,33 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
           email: '',
           direccion: '',
           observaciones: '',
+          marca_origen: '',
+          tipo_persona: 'moral',
+          industria: '',
+          ciudad: '',
+          estado: '',
+          fuente_origen: '',
+          notas_crm: '',
         });
         setUsarMismoNombre(false);
       }
     }
   }, [open, clienteToEdit]);
 
-  // Manejador de cambios en inputs
   const handleChange = (e) => {
     const { id, value } = e.target;
-    
+
     setFormData((prev) => {
       const newData = { ...prev, [id]: value };
-      
-      // Si cambiamos el nombre y el checkbox está activo, actualizamos también el contacto
+
       if (id === 'nombre' && usarMismoNombre) {
         newData.nombre_contacto = value;
       }
-      
+
       return newData;
     });
   };
 
-  // Manejador del checkbox
   const handleCheckboxChange = (checked) => {
     setUsarMismoNombre(checked);
     if (checked) {
@@ -104,6 +129,13 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
         email: formData.email,
         direccion: formData.direccion,
         observaciones: formData.observaciones,
+        marca_origen: formData.marca_origen || null,
+        tipo_persona: formData.tipo_persona || 'moral',
+        industria: formData.industria || null,
+        ciudad: formData.ciudad || null,
+        estado: formData.estado || null,
+        fuente_origen: formData.fuente_origen || null,
+        notas_crm: formData.notas_crm || null,
       };
 
       if (clienteToEdit) {
@@ -120,15 +152,15 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
         if (error) throw error;
         toast({ title: "Cliente creado", description: "El cliente se ha registrado exitosamente." });
       }
-      
-      onSave(); // Recargar lista
-      onOpenChange(false); // Cerrar modal
+
+      onSave();
+      onOpenChange(false);
     } catch (error) {
       console.error('Error:', error);
-      toast({ 
-        variant: "destructive", 
-        title: "Error", 
-        description: "No se pudo guardar el cliente. Verifica los datos." 
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo guardar el cliente. Verifica los datos."
       });
     } finally {
       setLoading(false);
@@ -155,10 +187,9 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
         <DialogHeader>
           <DialogTitle>{clienteToEdit ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-          
-          {/* Nombre Comercial */}
+
           <div className="grid gap-2">
             <Label htmlFor="nombre">Nombre Comercial o Razón Social</Label>
             <Input
@@ -170,13 +201,12 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
             />
           </div>
 
-          {/* Nombre de Contacto (NUEVO) */}
           <div className="grid gap-2 bg-gray-50 p-3 rounded-md border border-gray-100">
             <div className="flex items-center justify-between">
               <Label htmlFor="nombre_contacto">Nombre del Contacto</Label>
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="sameAsName" 
+                <Checkbox
+                  id="sameAsName"
                   checked={usarMismoNombre}
                   onCheckedChange={handleCheckboxChange}
                 />
@@ -193,7 +223,7 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
               value={formData.nombre_contacto}
               onChange={handleChange}
               placeholder="Ej. Ing. Juan Pérez"
-              disabled={usarMismoNombre} // Deshabilitar si se está copiando automáticamente
+              disabled={usarMismoNombre}
             />
           </div>
 
@@ -240,7 +270,6 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
             />
           </div>
 
-          {/* Observaciones (NUEVO) */}
           <div className="grid gap-2">
             <Label htmlFor="observaciones">Observaciones</Label>
             <Textarea
@@ -250,6 +279,105 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
               placeholder="Notas adicionales, horarios de recepción, referencias, etc."
               className="h-24"
             />
+          </div>
+
+          <div className="grid gap-2 pt-2 border-t">
+            <p className="text-sm font-medium text-gray-900">Información CRM (opcional)</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="tipo_persona">Tipo de persona</Label>
+                <Select
+                  value={formData.tipo_persona || 'moral'}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, tipo_persona: value }))}
+                >
+                  <SelectTrigger id="tipo_persona">
+                    <SelectValue placeholder="Selecciona tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="moral">Persona moral</SelectItem>
+                    <SelectItem value="fisica">Persona física</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="marca_origen">Marca de origen</Label>
+                <Select
+                  value={formData.marca_origen || undefined}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, marca_origen: value }))}
+                >
+                  <SelectTrigger id="marca_origen">
+                    <SelectValue placeholder="Selecciona marca" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MARCAS_COMERCIALES.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="ciudad">Ciudad</Label>
+                <Input
+                  id="ciudad"
+                  value={formData.ciudad}
+                  onChange={handleChange}
+                  placeholder="Ej. Mérida"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="estado">Estado</Label>
+                <Input
+                  id="estado"
+                  value={formData.estado}
+                  onChange={handleChange}
+                  placeholder="Ej. Yucatán"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="industria">Industria</Label>
+              <Input
+                id="industria"
+                value={formData.industria}
+                onChange={handleChange}
+                placeholder="Ej. Construcción, manufactura, comercio..."
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="fuente_origen">Fuente de origen</Label>
+              <Select
+                value={formData.fuente_origen || undefined}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, fuente_origen: value }))}
+              >
+                <SelectTrigger id="fuente_origen">
+                  <SelectValue placeholder="Selecciona fuente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="referido">Referido</SelectItem>
+                  <SelectItem value="directo">Cliente directo</SelectItem>
+                  <SelectItem value="feria">Feria o evento</SelectItem>
+                  <SelectItem value="web">Web/redes</SelectItem>
+                  <SelectItem value="otro">Otro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="notas_crm">Notas CRM</Label>
+              <Textarea
+                id="notas_crm"
+                value={formData.notas_crm}
+                onChange={handleChange}
+                placeholder="Observaciones internas del equipo de ventas..."
+                className="h-20 resize-none"
+              />
+            </div>
           </div>
 
         </form>
@@ -269,7 +397,7 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Confirmar actualización de datos?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se actualizará la información del cliente <span className="font-bold">{clienteToEdit?.nombre}</span>. 
+              Se actualizará la información del cliente <span className="font-bold">{clienteToEdit?.nombre}</span>.
               Esta acción modificará los datos guardados.
             </AlertDialogDescription>
           </AlertDialogHeader>

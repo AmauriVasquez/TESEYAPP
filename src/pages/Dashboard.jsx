@@ -42,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import IncomeStats from '@/components/dashboard/IncomeStats';
+import KPIsVentas from '@/components/dashboard/KPIsVentas';
 import { useProyectosPathPrefix } from '@/hooks/useProyectosPathPrefix';
 
 const StatCard = ({ title, value, icon, to, colorClass, subtitle }) => (
@@ -365,12 +366,16 @@ const Dashboard = () => {
             <TabsList>
                 <TabsTrigger value="general">General</TabsTrigger>
                 <TabsTrigger value="income">Ingresos</TabsTrigger>
+                <TabsTrigger value="kpis-ventas">KPIs Ventas</TabsTrigger>
             </TabsList>
             <TabsContent value="general">
                 <GeneralDashboard />
             </TabsContent>
             <TabsContent value="income">
                 <IncomeStats />
+            </TabsContent>
+            <TabsContent value="kpis-ventas">
+                <KPIsVentas />
             </TabsContent>
         </Tabs>
       </div>

@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DatePicker } from '@/components/ui/date-picker';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { usePermissions } from '@/contexts/PermissionsContext';
 
 const CATEGORIAS_GASTO = [
   { value: 'material', label: 'Material' },
@@ -31,6 +32,8 @@ const CATEGORIAS_GASTO = [
 
 const Finanzas = () => {
   const { toast } = useToast();
+  const { getHiddenFields } = usePermissions();
+  const hiddenFinanzas = getHiddenFields('finanzas');
   const [loading, setLoading] = useState(true);
   const [ingresos, setIngresos] = useState([]);
   const [gastos, setGastos] = useState([]);
@@ -512,10 +515,13 @@ const Finanzas = () => {
                 <p className="text-2xl font-bold text-red-800">${Number(totalGastos || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
                 <p className="text-xs text-gray-500 mt-1">{periodoLabel}</p>
               </div>
-              <div className="p-4 rounded-lg bg-blue-50 border border-blue-100">
-                <p className="text-sm font-medium text-blue-700">Utilidad Neta</p>
-                <p className={cn('text-2xl font-bold', Number(balance) >= 0 ? 'text-blue-800' : 'text-red-800')}>${Number(balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-              </div>
+              {!hiddenFinanzas.includes('utilidad_neta') && (
+                <div className="p-4 rounded-lg bg-blue-50 border border-blue-100">
+                  <p className="text-sm font-medium text-blue-700">Utilidad Neta</p>
+                  <p className={cn('text-2xl font-bold', Number(balance) >= 0 ? 'text-blue-800' : 'text-red-800')}>${Number(balance || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                </div>
+              )}
+              {/* TODO: agregar bloque margen_bruto cuando exista en la UI de Finanzas */}
               <div className="p-4 rounded-lg bg-amber-50 border border-amber-100">
                 <p className="text-sm font-medium text-amber-700">Cuentas por Cobrar</p>
                 <p className="text-2xl font-bold text-amber-800">${Number(cuentasPorCobrarTotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
@@ -728,32 +734,34 @@ const Finanzas = () => {
               )}
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Tendencia de Utilidad Acumulada</CardTitle>
-              <p className="text-sm text-gray-500">Últimos 12 meses</p>
-            </CardHeader>
-            <CardContent>
-              {loadingCharts ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                </div>
-              ) : (chartData || []).length === 0 ? (
-                <p className="text-center py-12 text-gray-500">Sin datos para mostrar.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={chartData || []} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200" />
-                    <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${v.toLocaleString('es-MX', { maximumFractionDigits: 0 })}`} />
-                    <Tooltip formatter={(v) => `$${Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`} labelFormatter={(_, payload) => payload?.[0]?.payload?.mes} />
-                    <Legend />
-                    <Line type="monotone" dataKey="utilidadAcum" name="Utilidad acumulada" stroke="#2563eb" strokeWidth={2} dot={{ r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
+          {!hiddenFinanzas.includes('utilidad_estimada') && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Tendencia de Utilidad Acumulada</CardTitle>
+                <p className="text-sm text-gray-500">Últimos 12 meses</p>
+              </CardHeader>
+              <CardContent>
+                {loadingCharts ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  </div>
+                ) : (chartData || []).length === 0 ? (
+                  <p className="text-center py-12 text-gray-500">Sin datos para mostrar.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={chartData || []} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200" />
+                      <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${v.toLocaleString('es-MX', { maximumFractionDigits: 0 })}`} />
+                      <Tooltip formatter={(v) => `$${Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`} labelFormatter={(_, payload) => payload?.[0]?.payload?.mes} />
+                      <Legend />
+                      <Line type="monotone" dataKey="utilidadAcum" name="Utilidad acumulada" stroke="#2563eb" strokeWidth={2} dot={{ r: 4 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <Card>
