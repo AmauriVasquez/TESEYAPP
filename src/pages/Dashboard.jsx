@@ -248,7 +248,7 @@ const GeneralDashboard = () => {
                                 <TableCell className="font-mono text-blue-600">
                                     <Link to={`${proyectosBase}/${p.id}`} className="hover:underline">{p.folio}</Link>
                                 </TableCell>
-                                <TableCell className="hidden sm:table-cell font-medium truncate max-w-xs">{p.descripcion}</TableCell>
+                                <TableCell className="font-medium truncate max-w-xs hidden sm:table-cell">{p.descripcion}</TableCell>
                                 <TableCell>
                                     <Badge variant={p.estatus === 'Completado' ? 'success' : 'default'}>{p.estatus}</Badge>
                                 </TableCell>

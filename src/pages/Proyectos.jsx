@@ -418,7 +418,7 @@ const Proyectos = () => {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl border shadow-sm min-h-[300px] overflow-x-auto">
+                <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
                     {loading ? (
                         <div className="flex justify-center items-center h-64"><Loader2 className="w-12 h-12 animate-spin text-blue-600" /></div>
                     ) : (
