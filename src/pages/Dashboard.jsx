@@ -237,9 +237,9 @@ const GeneralDashboard = () => {
                             <TableHeader>
                             <TableRow>
                                 <TableHead>Folio</TableHead>
-                                <TableHead>Descripción</TableHead>
+                                <TableHead className="hidden sm:table-cell">Descripción</TableHead>
                                 <TableHead>Estatus</TableHead>
-                                <TableHead className="w-[120px]">Avance</TableHead>
+                                <TableHead className="hidden sm:table-cell w-[120px]">Avance</TableHead>
                             </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -248,11 +248,11 @@ const GeneralDashboard = () => {
                                 <TableCell className="font-mono text-blue-600">
                                     <Link to={`${proyectosBase}/${p.id}`} className="hover:underline">{p.folio}</Link>
                                 </TableCell>
-                                <TableCell className="font-medium truncate max-w-xs">{p.descripcion}</TableCell>
+                                <TableCell className="hidden sm:table-cell font-medium truncate max-w-xs">{p.descripcion}</TableCell>
                                 <TableCell>
                                     <Badge variant={p.estatus === 'Completado' ? 'success' : 'default'}>{p.estatus}</Badge>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="hidden sm:table-cell">
                                     <div className="flex items-center gap-2">
                                     <Progress value={p.avance} className="h-2" />
                                     <span className="text-xs font-semibold">{p.avance}%</span>
