@@ -718,7 +718,7 @@ const AsistenciaSemanal = ({ empleados, fechaReferencia, setFechaReferencia }) =
 
       {/* Tabla: vista web = 1 celda + ícono; vista impresión = E | S | E | S */}
       <div className="bg-white rounded-xl shadow-sm border overflow-x-auto print:border-black">
-        <table className="w-full text-sm text-left border-collapse print:border print:border-black">
+        <table className="w-full min-w-[700px] text-sm text-left border-collapse print:border print:border-black">
           <thead className="bg-gray-100 text-gray-700 font-bold uppercase text-xs print:bg-gray-200 print:border-black print:text-black">
             <tr>
               <th className="p-2 min-w-[180px] sticky left-0 bg-gray-100 z-10 border border-gray-300 print:border-black">Empleado</th>
