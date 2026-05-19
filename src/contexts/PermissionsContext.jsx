@@ -7,8 +7,10 @@ import React, {
   useState,
 } from 'react';
 import { supabase } from '@/lib/customSupabaseClient';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 
-export const ROLE_PERMISSIONS = {
+// ─── Permisos base por rol ────────────────────────────────────────────────────
+const ROLE_PERMISSIONS = {
   ADMIN_MAESTRO: { _all: true },
   ADMIN_VISUAL: { _all: true },
   VENTAS: {
@@ -86,20 +88,32 @@ export const ROLE_PERMISSIONS = {
 
 const ADMIN_ROLES = new Set(['ADMIN_MAESTRO', 'ADMIN_VISUAL']);
 
-function resolvePermissionKey(modulo, submodulo) {
+function resolveKey(modulo, submodulo) {
   return submodulo ? `${modulo}.${submodulo}` : modulo;
 }
 
-function getRolePermissions(rol, key) {
-  const rolePerms = ROLE_PERMISSIONS[rol];
-  if (!rolePerms) return undefined;
-  if (rolePerms._all) return { ver: true, crear: true, editar: true, eliminar: true, autorizar: true, exportar: true };
-  return rolePerms[key];
+function getRolePerms(rol, key) {
+  const rp = ROLE_PERMISSIONS[rol];
+  if (!rp) return undefined;
+  if (rp._all) {
+    return {
+      ver: true,
+      crear: true,
+      editar: true,
+      eliminar: true,
+      autorizar: true,
+      exportar: true,
+    };
+  }
+  return rp[key];
 }
 
+// ─── Context ──────────────────────────────────────────────────────────────────
 const PermissionsContext = createContext(undefined);
 
 export function PermissionsProvider({ children }) {
+  const { user, loading: authLoading } = useAuth();
+
   const [userContext, setUserContext] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -114,62 +128,35 @@ export function PermissionsProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: rpcError } = await supabase.rpc('get_mi_contexto');
-      if (rpcError) throw rpcError;
+      const { data, error: rpcErr } = await supabase.rpc('get_mi_contexto');
+      if (rpcErr) throw rpcErr;
       setUserContext(data ?? null);
     } catch (err) {
-      console.error('get_mi_contexto error:', err);
+      console.error('[PermissionsContext] get_mi_contexto error:', err);
       setUserContext(null);
-      setError(err?.message ?? 'No se pudo cargar el contexto de permisos.');
+      setError(err?.message ?? 'Error cargando permisos.');
     } finally {
       setLoading(false);
     }
   }, []);
 
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (user) {
+      fetchContext();
+    } else {
+      clearContext();
+    }
+  }, [authLoading, user, fetchContext, clearContext]);
+
   const reload = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    if (!user) {
       clearContext();
       return;
     }
     await fetchContext();
-  }, [clearContext, fetchContext]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const bootstrap = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!mounted) return;
-      if (session) {
-        await fetchContext();
-      } else {
-        clearContext();
-      }
-    };
-
-    bootstrap();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-
-        if (event === 'SIGNED_OUT') {
-          clearContext();
-          return;
-        }
-
-        if (event === 'SIGNED_IN' && session) {
-          await fetchContext();
-        }
-      }
-    );
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [clearContext, fetchContext]);
+  }, [user, fetchContext, clearContext]);
 
   const userRole = userContext?.rol ?? null;
   const userId = userContext?.id ?? null;
@@ -177,21 +164,18 @@ export function PermissionsProvider({ children }) {
   const can = useCallback(
     (modulo, accion, submodulo) => {
       if (loading || !userContext) return false;
-
       if (ADMIN_ROLES.has(userContext.rol)) return true;
 
-      const key = resolvePermissionKey(modulo, submodulo);
+      const key = resolveKey(modulo, submodulo);
       const override = userContext.permisos_override?.[key];
-      const base = getRolePermissions(userContext.rol, key);
+      const base = getRolePerms(userContext.rol, key);
 
       if (override && Object.prototype.hasOwnProperty.call(override, accion)) {
         return Boolean(override[accion]);
       }
-
       if (base && Object.prototype.hasOwnProperty.call(base, accion)) {
         return Boolean(base[accion]);
       }
-
       return false;
     },
     [loading, userContext]
@@ -201,14 +185,11 @@ export function PermissionsProvider({ children }) {
     (modulo, submodulo) => {
       if (!userContext) return [];
       if (ADMIN_ROLES.has(userContext.rol)) return [];
-
-      const key = resolvePermissionKey(modulo, submodulo);
+      const key = resolveKey(modulo, submodulo);
       const override = userContext.permisos_override?.[key];
-
       if (override?.campos_ocultos && Array.isArray(override.campos_ocultos)) {
         return override.campos_ocultos;
       }
-
       return [];
     },
     [userContext]
@@ -237,15 +218,13 @@ export function PermissionsProvider({ children }) {
     [userContext, userRole, userId, loading, error, can, getHiddenFields, hasRole, reload]
   );
 
-  return (
-    <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>
-  );
+  return <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>;
 }
 
 export function usePermissions() {
-  const context = useContext(PermissionsContext);
-  if (context === undefined) {
+  const ctx = useContext(PermissionsContext);
+  if (ctx === undefined) {
     throw new Error('usePermissions must be used within a PermissionsProvider');
   }
-  return context;
+  return ctx;
 }
