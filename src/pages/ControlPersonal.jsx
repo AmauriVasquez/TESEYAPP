@@ -718,7 +718,7 @@ const AsistenciaSemanal = ({ empleados, fechaReferencia, setFechaReferencia }) =
 
       {/* Tabla: vista web = 1 celda + ícono; vista impresión = E | S | E | S */}
       <div className="bg-white rounded-xl shadow-sm border overflow-x-auto print:border-black">
-        <table className="w-full text-sm text-left border-collapse print:border print:border-black">
+        <table className="w-full min-w-[640px] text-sm text-left border-collapse print:border print:border-black">
           <thead className="bg-gray-100 text-gray-700 font-bold uppercase text-xs print:bg-gray-200 print:border-black print:text-black">
             <tr>
               <th className="p-2 min-w-[180px] sticky left-0 bg-gray-100 z-10 border border-gray-300 print:border-black">Empleado</th>
@@ -1189,7 +1189,7 @@ const ControlPersonal = () => {
         </div>
 
         <Tabs defaultValue="asistencia" className="w-full">
-          <TabsList className="mb-4 bg-gray-100 p-1 rounded-lg">
+          <TabsList className="mb-4 bg-gray-100 p-1 rounded-lg flex flex-wrap h-auto gap-1">
             <TabsTrigger value="asistencia" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all"><CalendarDays className="w-4 h-4"/> Lista de Asistencia</TabsTrigger>
             <TabsTrigger value="empleados" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all"><Users className="w-4 h-4"/> Empleados y Vacaciones</TabsTrigger>
           </TabsList>
