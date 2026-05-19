@@ -16,6 +16,7 @@ import {
   FileText,
   Loader2,
   UserCheck,
+  Globe,
 } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
@@ -227,6 +228,20 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
                         className="text-sm font-medium text-blue-600 hover:underline"
                       >
                         {prospecto.email}
+                      </a>
+                    </div>
+                  )}
+                  {prospecto.sitio_web && (
+                    <div>
+                      <p className="text-xs text-gray-500">Sitio web</p>
+                      <a
+                        href={prospecto.sitio_web.startsWith('http') ? prospecto.sitio_web : `https://${prospecto.sitio_web}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <Globe className="w-3 h-3 shrink-0" />
+                        {prospecto.sitio_web}
                       </a>
                     </div>
                   )}
