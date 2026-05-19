@@ -63,13 +63,13 @@ const ProspectoCard = ({ prospecto, onCardClick }) => {
 
 const ProspectoKanban = ({ prospectos, onCardClick }) => {
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
+    <div className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory">
       {COLUMNAS.map((col) => {
         const items = prospectos.filter((p) => p.etapa === col.id);
         const suma = items.reduce((acc, p) => acc + (Number(p.valor_estimado) || 0), 0);
 
         return (
-          <div key={col.id} className="flex-1 min-w-[180px]">
+          <div key={col.id} className="flex-none w-[260px] sm:flex-1 sm:min-w-[180px] snap-start">
             <div className="mb-3 px-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm font-semibold text-gray-700">{col.label}</h3>
