@@ -201,6 +201,37 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
             </TabsList>
 
             <TabsContent value="resumen" className="space-y-4 mt-4">
+              <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Contacto</p>
+                <div className="grid grid-cols-1 gap-2">
+                  <ResumenField label="Empresa / Nombre" value={prospecto.nombre} />
+                  {prospecto.nombre_contacto && (
+                    <ResumenField label="Persona de contacto" value={prospecto.nombre_contacto} />
+                  )}
+                  {prospecto.telefono && (
+                    <div>
+                      <p className="text-xs text-gray-500">Teléfono</p>
+                      <a
+                        href={`tel:${prospecto.telefono}`}
+                        className="text-sm font-medium text-blue-600 hover:underline"
+                      >
+                        {prospecto.telefono}
+                      </a>
+                    </div>
+                  )}
+                  {prospecto.email && (
+                    <div>
+                      <p className="text-xs text-gray-500">Email</p>
+                      <a
+                        href={`mailto:${prospecto.email}`}
+                        className="text-sm font-medium text-blue-600 hover:underline"
+                      >
+                        {prospecto.email}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <ResumenField label="Valor estimado" value={formatMXN(prospecto.valor_estimado)} />
                 <ResumenField
