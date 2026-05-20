@@ -204,46 +204,56 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
             <TabsContent value="resumen" className="space-y-4 mt-4">
               <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Contacto</p>
-                <div className="grid grid-cols-1 gap-2">
-                  <ResumenField label="Empresa / Nombre" value={prospecto.nombre} />
-                  {prospecto.nombre_contacto && (
-                    <ResumenField label="Persona de contacto" value={prospecto.nombre_contacto} />
-                  )}
-                  {prospecto.telefono && (
-                    <div>
-                      <p className="text-xs text-gray-500">Teléfono</p>
+
+                {prospecto.nombre_contacto && (
+                  <ResumenField label="Persona de contacto" value={prospecto.nombre_contacto} />
+                )}
+
+                {/* Teléfono + Email lado a lado */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500">Teléfono</p>
+                    {prospecto.telefono ? (
                       <a
                         href={`tel:${prospecto.telefono}`}
                         className="text-sm font-medium text-blue-600 hover:underline"
                       >
                         {prospecto.telefono}
                       </a>
-                    </div>
-                  )}
-                  {prospecto.email && (
-                    <div>
-                      <p className="text-xs text-gray-500">Email</p>
+                    ) : (
+                      <p className="text-sm font-medium text-gray-400">—</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Email</p>
+                    {prospecto.email ? (
                       <a
                         href={`mailto:${prospecto.email}`}
-                        className="text-sm font-medium text-blue-600 hover:underline"
+                        className="text-sm font-medium text-blue-600 hover:underline break-all"
                       >
                         {prospecto.email}
                       </a>
-                    </div>
-                  )}
-                  {prospecto.sitio_web && (
-                    <div>
-                      <p className="text-xs text-gray-500">Sitio web</p>
-                      <a
-                        href={prospecto.sitio_web.startsWith('http') ? prospecto.sitio_web : `https://${prospecto.sitio_web}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-blue-600 hover:underline flex items-center gap-1"
-                      >
-                        <Globe className="w-3 h-3 shrink-0" />
-                        {prospecto.sitio_web}
-                      </a>
-                    </div>
+                    ) : (
+                      <p className="text-sm font-medium text-gray-400">—</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sitio web — fila completa */}
+                <div>
+                  <p className="text-xs text-gray-500">Sitio web</p>
+                  {prospecto.sitio_web ? (
+                    <a
+                      href={prospecto.sitio_web.startsWith('http') ? prospecto.sitio_web : `https://${prospecto.sitio_web}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-blue-600 hover:underline flex items-center gap-1 break-all"
+                    >
+                      <Globe className="w-3 h-3 shrink-0" />
+                      {prospecto.sitio_web}
+                    </a>
+                  ) : (
+                    <p className="text-sm font-medium text-gray-400">—</p>
                   )}
                 </div>
               </div>
