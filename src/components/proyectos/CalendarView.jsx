@@ -40,26 +40,24 @@ const STATUS_COLORS = {
 /** Color para eventos de cumpleaños (solo visual en calendario interno) */
 const CUMBLE_COLOR = '#db2777';
 
+/** Color para citas CRM con prospectos */
+const CRM_COLOR = '#6366f1'; // indigo-500
+
 const eventStyleGetter = (event) => {
   if (event?.resource?.tipo === 'cumpleanos') {
     return {
-      style: {
-        backgroundColor: CUMBLE_COLOR,
-        borderRadius: '4px',
-        border: 'none',
-        color: 'white',
-      },
+      style: { backgroundColor: CUMBLE_COLOR, borderRadius: '4px', border: 'none', color: 'white' },
+    };
+  }
+  if (event?.resource?.tipo === 'cita_crm') {
+    return {
+      style: { backgroundColor: CRM_COLOR, borderRadius: '4px', border: 'none', color: 'white' },
     };
   }
   const estatus = event?.resource?.estatus;
   const backgroundColor = STATUS_COLORS[estatus] ?? '#3174ad';
   return {
-    style: {
-      backgroundColor,
-      borderRadius: '4px',
-      border: 'none',
-      color: 'white',
-    },
+    style: { backgroundColor, borderRadius: '4px', border: 'none', color: 'white' },
   };
 };
 
@@ -144,7 +142,7 @@ function getCumpleAnoActual(fechaNacimiento) {
  * Vista de calendario tipo Google Calendar: sidebar (mini-calendario + filtros por estatus) y grid principal.
  * Acepta proyectos y empleados (activos) para mostrar cumpleaños del año en curso (hoy o futuro).
  */
-const CalendarView = ({ proyectos, empleados = [] }) => {
+const CalendarView = ({ proyectos, empleados = [], citas = [], onSelectCita }) => {
   const navigate = useNavigate();
   const proyectosBase = useProyectosPathPrefix();
   const [date, setDate] = useState(() => new Date());
@@ -215,11 +213,34 @@ const CalendarView = ({ proyectos, empleados = [] }) => {
       })
       .filter(Boolean);
 
-    return [...projectEvents, ...cumpleEvents];
-  }, [proyectos, activeStatuses, empleados, todayStr]);
+    const TIPO_LABEL = { llamada: 'Llamada', whatsapp: 'WhatsApp', visita: 'Visita' };
+    const citaEvents = (citas || [])
+      .filter((c) => c.fecha_hora_programada)
+      .map((c) => {
+        const start = new Date(c.fecha_hora_programada);
+        const end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour duration
+        const tipoLabel = TIPO_LABEL[c.tipo] || c.tipo;
+        const nombreProspecto = c.prospecto?.nombre || 'Prospecto';
+        return {
+          id: `cita-${c.id}`,
+          title: `${tipoLabel} — ${nombreProspecto}`,
+          start,
+          end,
+          resource: { tipo: 'cita_crm', citaId: c.id, prospecto: c.prospecto },
+        };
+      });
+
+    return [...projectEvents, ...cumpleEvents, ...citaEvents];
+  }, [proyectos, activeStatuses, empleados, todayStr, citas]);
 
   const handleSelectEvent = (event) => {
     if (event?.resource?.tipo === 'cumpleanos') return;
+    if (event?.resource?.tipo === 'cita_crm') {
+      if (onSelectCita && event.resource.prospecto) {
+        onSelectCita(event.resource.prospecto);
+      }
+      return;
+    }
     if (event?.resource?.id) {
       navigate(`${proyectosBase}/${event.resource.id}`);
     }
@@ -261,6 +282,17 @@ const CalendarView = ({ proyectos, empleados = [] }) => {
                 <span className="truncate">{status}</span>
               </label>
             ))}
+          </div>
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">CRM</h3>
+          <div className="flex items-center gap-2 text-sm text-gray-700 p-1">
+            <span
+              className="w-3 h-3 rounded-sm shadow-sm shrink-0"
+              style={{ backgroundColor: CRM_COLOR }}
+              aria-hidden
+            />
+            <span>Citas con prospectos</span>
           </div>
         </div>
       </aside>

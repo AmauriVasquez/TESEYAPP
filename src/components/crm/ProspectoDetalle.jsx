@@ -17,10 +17,14 @@ import {
   Loader2,
   UserCheck,
   Globe,
+  CalendarDays,
+  CheckCircle2,
 } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 import InteraccionForm from '@/components/crm/InteraccionForm';
+import CitaForm from '@/components/crm/CitaForm';
+import MarcarRealizadaForm from '@/components/crm/MarcarRealizadaForm';
 
 const MARCA_BADGE = {
   tesey: 'bg-emerald-100 text-emerald-800',
@@ -73,6 +77,23 @@ const formatDate = (value) => {
   return new Date(value + (String(value).includes('T') ? '' : 'T00:00:00')).toLocaleDateString('es-MX');
 };
 
+const formatDateTime = (value) => {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('es-MX', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const TIPO_CITA_COLOR = {
+  llamada: 'bg-blue-100 text-blue-800',
+  whatsapp: 'bg-green-100 text-green-800',
+  visita: 'bg-orange-100 text-orange-800',
+};
+
 const ResumenField = ({ label, value }) => (
   <div>
     <p className="text-xs text-gray-500">{label}</p>
@@ -86,6 +107,9 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
   const [loadingInteracciones, setLoadingInteracciones] = useState(false);
   const [interaccionFormOpen, setInteraccionFormOpen] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
+  const [citaFormOpen, setCitaFormOpen] = useState(false);
+  const [marcarRealizadaOpen, setMarcarRealizadaOpen] = useState(false);
+  const [selectedCita, setSelectedCita] = useState(null);
 
   const fetchInteracciones = useCallback(async () => {
     if (!prospecto?.id) return;
@@ -287,50 +311,139 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
               )}
             </TabsContent>
 
-            <TabsContent value="interacciones" className="mt-4">
+            <TabsContent value="interacciones" className="mt-4 space-y-4">
+              {/* Action buttons */}
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 sm:flex-none gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                  onClick={() => setCitaFormOpen(true)}
+                >
+                  <CalendarDays className="w-4 h-4" />
+                  Programar cita
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 sm:flex-none"
+                  onClick={() => setInteraccionFormOpen(true)}
+                >
+                  + Registrar interacción
+                </Button>
+              </div>
+
               {loadingInteracciones ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                 </div>
-              ) : interacciones.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-6">
-                  Sin interacciones registradas. Registra la primera.
-                </p>
               ) : (
-                <ul className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
-                  {interacciones.map((item) => {
-                    const Icon = TIPO_ICON[item.tipo] || FileText;
-                    return (
-                      <li key={item.id} className="flex gap-3 border rounded-lg p-3 bg-gray-50">
-                        <Icon className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm text-gray-900">{item.descripcion}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {formatDate(item.fecha)}
-                          </p>
-                          {item.proxima_accion && (
-                            <p className="text-xs text-blue-700 mt-1">
-                              Próxima: {item.proxima_accion}
-                              {item.fecha_proxima_accion
-                                ? ` · ${formatDate(item.fecha_proxima_accion)}`
-                                : ''}
-                            </p>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+                <>
+                  {/* Pending appointments */}
+                  {interacciones.filter((i) => i.programada).length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2">
+                        Citas pendientes
+                      </p>
+                      <ul className="space-y-2">
+                        {interacciones
+                          .filter((i) => i.programada)
+                          .sort(
+                            (a, b) =>
+                              new Date(a.fecha_hora_programada) -
+                              new Date(b.fecha_hora_programada)
+                          )
+                          .map((item) => {
+                            const Icon = TIPO_ICON[item.tipo] || FileText;
+                            const colorClass =
+                              TIPO_CITA_COLOR[item.tipo] || 'bg-gray-100 text-gray-800';
+                            return (
+                              <li
+                                key={item.id}
+                                className="flex gap-3 border border-indigo-100 rounded-lg p-3 bg-indigo-50"
+                              >
+                                <Icon className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}
+                                    >
+                                      {item.tipo.charAt(0).toUpperCase() + item.tipo.slice(1)}
+                                    </span>
+                                    <p className="text-sm font-semibold text-indigo-900">
+                                      {formatDateTime(item.fecha_hora_programada)}
+                                    </p>
+                                  </div>
+                                  {item.descripcion && (
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      {item.descripcion}
+                                    </p>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="mt-2 h-7 text-xs bg-green-600 hover:bg-green-700 text-white gap-1"
+                                    onClick={() => {
+                                      setSelectedCita(item);
+                                      setMarcarRealizadaOpen(true);
+                                    }}
+                                  >
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    Marcar como realizada
+                                  </Button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                      </ul>
+                    </div>
+                  )}
 
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full mt-4"
-                onClick={() => setInteraccionFormOpen(true)}
-              >
-                + Registrar interacción
-              </Button>
+                  {/* Interaction history */}
+                  <div>
+                    {interacciones.filter((i) => !i.programada).length > 0 && (
+                      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                        Historial
+                      </p>
+                    )}
+                    {interacciones.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-6">
+                        Sin interacciones registradas. Registra la primera.
+                      </p>
+                    ) : interacciones.filter((i) => !i.programada).length === 0 ? null : (
+                      <ul className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+                        {interacciones
+                          .filter((i) => !i.programada)
+                          .map((item) => {
+                            const Icon = TIPO_ICON[item.tipo] || FileText;
+                            return (
+                              <li
+                                key={item.id}
+                                className="flex gap-3 border rounded-lg p-3 bg-gray-50"
+                              >
+                                <Icon className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm text-gray-900">{item.descripcion}</p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {formatDate(item.fecha)}
+                                  </p>
+                                  {item.proxima_accion && (
+                                    <p className="text-xs text-blue-700 mt-1">
+                                      Próxima: {item.proxima_accion}
+                                      {item.fecha_proxima_accion
+                                        ? ` · ${formatDate(item.fecha_proxima_accion)}`
+                                        : ''}
+                                    </p>
+                                  )}
+                                </div>
+                              </li>
+                            );
+                          })}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
             </TabsContent>
           </Tabs>
         </DialogContent>
@@ -342,6 +455,23 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
         prospectoId={prospecto.id}
         marcaOrigen={prospecto.marca_origen || 'tesey'}
         onSave={fetchInteracciones}
+      />
+
+      <CitaForm
+        open={citaFormOpen}
+        onOpenChange={setCitaFormOpen}
+        prospectoId={prospecto.id}
+        marcaOrigen={prospecto.marca_origen || 'tesey'}
+        onSave={fetchInteracciones}
+      />
+
+      <MarcarRealizadaForm
+        open={marcarRealizadaOpen}
+        onOpenChange={setMarcarRealizadaOpen}
+        interaccion={selectedCita}
+        prospectoId={prospecto.id}
+        onSave={fetchInteracciones}
+        onRefetch={onRefetch}
       />
     </>
   );
