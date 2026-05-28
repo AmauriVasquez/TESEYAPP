@@ -449,7 +449,7 @@ function EntregaMobileFlow({
 
   const continuarDesdePasoFoto = () => {
     if (!entregaFotoFile || !entregaFotoPreview) {
-      window.alert('Agrega una foto de la entrega');
+      toast({ variant: 'destructive', title: 'Foto requerida', description: 'Agrega una foto de la entrega.' });
       return;
     }
     setMobileStep(5);
@@ -989,7 +989,7 @@ export default function EntregaModal({
       return;
     }
     if (!entregaFotoFile || !entregaFotoPreview) {
-      window.alert('Agrega una foto de la entrega');
+      toast({ variant: 'destructive', title: 'Foto requerida', description: 'Agrega una foto de la entrega.' });
       return;
     }
     const sig = sigApiRef.current;
@@ -997,8 +997,6 @@ export default function EntregaModal({
       toast({ variant: 'destructive', title: 'Firma requerida', description: 'Se necesita la firma de recibido.' });
       return;
     }
-
-    if (!window.confirm('¿Confirmas esta entrega?')) return;
 
     setSaving(true);
     try {
@@ -1011,7 +1009,7 @@ export default function EntregaModal({
       const yaCompletoServidor =
         latestRows.length === 0 || latestRows.every((i) => Number(i.pendiente) <= 0);
       if (yaCompletoServidor) {
-        window.alert('Este proyecto ya fue entregado completamente');
+        toast({ variant: 'destructive', title: 'Sin pendientes', description: 'Este proyecto ya fue entregado completamente.' });
         return;
       }
 
@@ -1135,6 +1133,8 @@ export default function EntregaModal({
             : 'flex max-h-[90vh] max-w-4xl flex-col gap-4'
         )}
         forceMount
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
       >
         <DialogHeader
           className={cn(

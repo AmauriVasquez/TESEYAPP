@@ -401,7 +401,11 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent
+        className="max-w-4xl max-h-[90vh] flex flex-col"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>
             {cotizacion ? `Editar Cotización ${cotizacion.folio}` : (initialTemplate ? 'Nueva Cotización (desde plantilla)' : 'Nueva Cotización')}
