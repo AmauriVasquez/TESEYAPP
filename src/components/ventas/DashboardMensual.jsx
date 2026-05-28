@@ -6,41 +6,29 @@ import FunnelComercial from '@/components/ventas/FunnelComercial';
 import MarcaCards from '@/components/ventas/MarcaCards';
 import OportunidadesTabla from '@/components/ventas/OportunidadesTabla';
 
-const DARK = {
-  card:    '#171A21',
-  border:  '#262B36',
-  muted:   '#8892A4',
-  text:    '#E8EDF5',
-  primary: '#4F8CFF',
-  success: '#35C759',
-  warning: '#FFB547',
-  danger:  '#FF5C5C',
-};
-
 function MensualKpiCard({ label, value, sub, progress, progressColor, delay, loading }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.3 }}
-      className="rounded-xl p-5 flex flex-col gap-2"
-      style={{ background: DARK.card, border: `1px solid ${DARK.border}` }}
+      className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex flex-col gap-1.5"
     >
-      <p className="text-xs font-medium uppercase tracking-wide" style={{ color: DARK.muted }}>
-        {label}
-      </p>
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
       {loading
-        ? <div className="h-7 w-28 rounded animate-pulse" style={{ background: DARK.border }} />
-        : <p className="text-2xl font-bold" style={{ color: DARK.text }}>{value}</p>
+        ? <div className="h-7 w-28 rounded bg-gray-100 animate-pulse" />
+        : <p className="text-2xl font-bold text-gray-900">{value}</p>
       }
-      {sub && <p className="text-xs" style={{ color: DARK.muted }}>{sub}</p>}
+      {sub && <p className="text-xs text-gray-400">{sub}</p>}
       {progress != null && (
         <div className="mt-1 space-y-1">
-          <div className="h-1.5 w-full rounded-full" style={{ background: DARK.border }}>
-            <div className="h-full rounded-full transition-all duration-700"
-              style={{ width: `${Math.min(100, progress)}%`, background: progressColor || DARK.primary }} />
+          <div className="h-1.5 w-full rounded-full bg-gray-100">
+            <div
+              className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${Math.min(100, progress)}%`, background: progressColor || '#3B82F6' }}
+            />
           </div>
-          <p className="text-[10px]" style={{ color: DARK.muted }}>{Math.min(100, progress)}% del objetivo</p>
+          <p className="text-[10px] text-gray-400">{Math.min(100, progress)}% del objetivo</p>
         </div>
       )}
     </motion.div>
@@ -65,11 +53,12 @@ export default function DashboardMensual({ ingresosPorMes, cotizaciones, prospec
     return ingresosPorMes[key] ?? 0;
   }, [ingresosPorMes, mes, anio]);
 
-  const meta = metaMes?.meta_ingresos ?? 0;
-  const pctMeta = meta > 0 ? Math.min(100, Math.round((ingresoMes / meta) * 100)) : 0;
-  const progressColor = ingresoMes >= meta ? DARK.success : pctMeta >= 50 ? DARK.primary : DARK.warning;
+  const meta        = metaMes?.meta_ingresos ?? 0;
+  const pctMeta     = meta > 0 ? Math.min(100, Math.round((ingresoMes / meta) * 100)) : 0;
+  const progressColor = ingresoMes >= meta ? '#22C55E'
+    : pctMeta >= 50 ? '#3B82F6'
+    : '#F59E0B';
 
-  // Cotizaciones activas (Borrador + Enviada)
   const activas  = cotizaciones.filter(c => ['Borrador', 'Enviada'].includes(c.estatus));
   const pipeline = cotizaciones
     .filter(c => ['Borrador', 'Enviada', 'Aprobada'].includes(c.estatus))
