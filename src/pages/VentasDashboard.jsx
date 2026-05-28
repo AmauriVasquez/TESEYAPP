@@ -5,22 +5,28 @@ import { Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
-import { getMetaMes, META_ANUAL_2026, fmtMXNFull } from '@/config/ventasMetas';
-import KpiHero from '@/components/ventas/KpiHero';
-import IngresosChart from '@/components/ventas/IngresosChart';
-import MetasTabla from '@/components/ventas/MetasTabla';
-import PipelineCards from '@/components/ventas/PipelineCards';
+import { META_ANUAL_2026, fmtMXNFull } from '@/config/ventasMetas';
+import { cn } from '@/lib/utils';
+import DashboardAnual from '@/components/ventas/DashboardAnual';
+import DashboardMensual from '@/components/ventas/DashboardMensual';
+
+const NOMBRES_MES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
 
 export default function VentasDashboard() {
   const { toast } = useToast();
 
+  // Calcular mes/año al montar — no en nivel de módulo
   const { mes: MES_ACTUAL, anio: ANIO_ACTUAL } = useMemo(() => {
     const now = new Date();
     return { mes: now.getMonth() + 1, anio: now.getFullYear() };
   }, []);
 
+  const [tab, setTab] = useState('anual');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError]     = useState(false);
   const [ingresosPorMes, setIngresosPorMes] = useState({});
   const [cotizaciones, setCotizaciones]     = useState([]);
   const [prospectos, setProspectos]         = useState([]);
@@ -33,22 +39,20 @@ export default function VentasDashboard() {
     setProspectos([]);
     try {
       const [pagosRes, cotRes, prospRes] = await Promise.all([
-        // Pagos/ingresos reales desde proyecto_pagos
         supabase
           .from('proyecto_pagos')
           .select('monto, fecha_pago')
           .gte('fecha_pago', '2026-01-01'),
 
-        // Cotizaciones activas (excluyendo Historial y Obsoleta)
         supabase
           .from('cotizaciones')
           .select('estatus, total, fecha')
           .not('estatus', 'in', '("Historial","Obsoleta")'),
 
-        // Prospectos no eliminados
+        // FIX: columna correcta es etapa, no estatus
         supabase
           .from('prospectos')
-          .select('id, estatus')
+          .select('id, etapa')
           .eq('eliminado', false),
       ]);
 
@@ -56,11 +60,10 @@ export default function VentasDashboard() {
       if (cotRes.error)   throw cotRes.error;
       if (prospRes.error) throw prospRes.error;
 
-      // Agrupar pagos por "YYYY-MM"
       const mapa = {};
       for (const pago of pagosRes.data || []) {
         if (!pago.fecha_pago) continue;
-        const key = pago.fecha_pago.slice(0, 7); // "2026-05"
+        const key = pago.fecha_pago.slice(0, 7);
         mapa[key] = (mapa[key] || 0) + Number(pago.monto || 0);
       }
       setIngresosPorMes(mapa);
@@ -77,22 +80,7 @@ export default function VentasDashboard() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const metaMes   = useMemo(() => getMetaMes(MES_ACTUAL, ANIO_ACTUAL), [MES_ACTUAL, ANIO_ACTUAL]);
-  const ingresoMes = useMemo(() => {
-    const key = `${ANIO_ACTUAL}-${String(MES_ACTUAL).padStart(2, '0')}`;
-    return ingresosPorMes[key] ?? 0;
-  }, [ingresosPorMes, MES_ACTUAL, ANIO_ACTUAL]);
-
-  // Progreso anual 2026
-  const totalReal2026 = useMemo(
-    () => Object.entries(ingresosPorMes)
-      .filter(([k]) => k.startsWith('2026-'))
-      .reduce((s, [, v]) => s + v, 0),
-    [ingresosPorMes]
-  );
-  const pctAnual2026 = META_ANUAL_2026 > 0
-    ? Math.min(100, Math.round((totalReal2026 / META_ANUAL_2026) * 100))
-    : 0;
+  const mesLabel = `${NOMBRES_MES[MES_ACTUAL - 1]} ${ANIO_ACTUAL}`;
 
   return (
     <>
@@ -100,54 +88,85 @@ export default function VentasDashboard() {
         <title>Dashboard Ventas – IIHEMSA Peninsular</title>
       </Helmet>
 
-      <div className="space-y-6">
-        {/* Encabezado */}
-        <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="space-y-5">
+        {/* ── Encabezado ─────────────────────────────── */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Dashboard de Ventas</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              Seguimiento de metas · Meta anual 2026: {fmtMXNFull(META_ANUAL_2026)}
+              Seguimiento de metas · Meta anual {ANIO_ACTUAL}: {fmtMXNFull(META_ANUAL_2026)}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading} className="gap-2">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchAll}
+            disabled={loading}
+            className="gap-2"
+          >
+            {loading
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <RefreshCw className="h-4 w-4" />
+            }
             Actualizar
           </Button>
         </div>
 
+        {/* ── Error banner ───────────────────────────── */}
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            No se pudieron cargar los datos. Usa el botón <strong>Actualizar</strong> para reintentar.
+            No se pudieron cargar los datos. Usa el botón{' '}
+            <strong>Actualizar</strong> para reintentar.
           </div>
         )}
 
-        {/* Barra de progreso anual 2026 */}
-        <div className="rounded-xl border bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-gray-700">Avance anual 2026</p>
-            <p className="text-sm font-bold text-gray-900">
-              {fmtMXNFull(totalReal2026)} / {fmtMXNFull(META_ANUAL_2026)} · <span className={pctAnual2026 >= 100 ? 'text-green-700' : 'text-blue-700'}>{pctAnual2026}%</span>
-            </p>
-          </div>
-          <div className="h-3 w-full overflow-hidden rounded-full bg-gray-100">
-            <div
-              className="h-full rounded-full transition-all duration-700 bg-gradient-to-r from-blue-500 to-indigo-600"
-              style={{ width: `${pctAnual2026}%` }}
-            />
-          </div>
+        {/* ── Tab switcher ───────────────────────────── */}
+        <div className="flex rounded-xl border bg-white p-1 shadow-sm w-fit gap-1">
+          <button
+            type="button"
+            onClick={() => setTab('anual')}
+            className={cn(
+              'rounded-lg px-5 py-2 text-sm font-medium transition-colors',
+              tab === 'anual'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+            )}
+          >
+            Anual {ANIO_ACTUAL}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('mensual')}
+            className={cn(
+              'rounded-lg px-5 py-2 text-sm font-medium transition-colors',
+              tab === 'mensual'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+            )}
+          >
+            {mesLabel}
+          </button>
         </div>
 
-        {/* KPI Hero del mes */}
-        <KpiHero metaMes={metaMes} ingresoReal={ingresoMes} loading={loading} />
-
-        {/* Gráfica */}
-        <IngresosChart ingresosPorMes={ingresosPorMes} anio={ANIO_ACTUAL} />
-
-        {/* Pipeline */}
-        <PipelineCards cotizaciones={cotizaciones} prospectos={prospectos} loading={loading} />
-
-        {/* Tabla completa */}
-        <MetasTabla ingresosPorMes={ingresosPorMes} />
+        {/* ── Contenido del tab activo ───────────────── */}
+        {tab === 'anual' ? (
+          <DashboardAnual
+            ingresosPorMes={ingresosPorMes}
+            cotizaciones={cotizaciones}
+            prospectos={prospectos}
+            loading={loading}
+            anio={ANIO_ACTUAL}
+          />
+        ) : (
+          <DashboardMensual
+            ingresosPorMes={ingresosPorMes}
+            cotizaciones={cotizaciones}
+            prospectos={prospectos}
+            loading={loading}
+            mes={MES_ACTUAL}
+            anio={ANIO_ACTUAL}
+          />
+        )}
       </div>
     </>
   );
