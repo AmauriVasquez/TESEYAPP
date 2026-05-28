@@ -11,19 +11,26 @@ import IngresosChart from '@/components/ventas/IngresosChart';
 import MetasTabla from '@/components/ventas/MetasTabla';
 import PipelineCards from '@/components/ventas/PipelineCards';
 
-const NOW = new Date();
-const MES_ACTUAL  = NOW.getMonth() + 1;
-const ANIO_ACTUAL = NOW.getFullYear();
-
 export default function VentasDashboard() {
   const { toast } = useToast();
+
+  const { mes: MES_ACTUAL, anio: ANIO_ACTUAL } = useMemo(() => {
+    const now = new Date();
+    return { mes: now.getMonth() + 1, anio: now.getFullYear() };
+  }, []);
+
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [ingresosPorMes, setIngresosPorMes] = useState({});
   const [cotizaciones, setCotizaciones]     = useState([]);
   const [prospectos, setProspectos]         = useState([]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    setError(false);
+    setIngresosPorMes({});
+    setCotizaciones([]);
+    setProspectos([]);
     try {
       const [pagosRes, cotRes, prospRes] = await Promise.all([
         // Pagos/ingresos reales desde proyecto_pagos
@@ -62,6 +69,7 @@ export default function VentasDashboard() {
     } catch (err) {
       console.error(err);
       toast({ variant: 'destructive', title: 'Error al cargar dashboard', description: err.message });
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -69,11 +77,11 @@ export default function VentasDashboard() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const metaMes   = useMemo(() => getMetaMes(MES_ACTUAL, ANIO_ACTUAL), []);
+  const metaMes   = useMemo(() => getMetaMes(MES_ACTUAL, ANIO_ACTUAL), [MES_ACTUAL, ANIO_ACTUAL]);
   const ingresoMes = useMemo(() => {
     const key = `${ANIO_ACTUAL}-${String(MES_ACTUAL).padStart(2, '0')}`;
     return ingresosPorMes[key] ?? 0;
-  }, [ingresosPorMes]);
+  }, [ingresosPorMes, MES_ACTUAL, ANIO_ACTUAL]);
 
   // Progreso anual 2026
   const totalReal2026 = useMemo(
@@ -107,6 +115,12 @@ export default function VentasDashboard() {
           </Button>
         </div>
 
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            No se pudieron cargar los datos. Usa el botón <strong>Actualizar</strong> para reintentar.
+          </div>
+        )}
+
         {/* Barra de progreso anual 2026 */}
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between mb-2">
@@ -127,7 +141,7 @@ export default function VentasDashboard() {
         <KpiHero metaMes={metaMes} ingresoReal={ingresoMes} loading={loading} />
 
         {/* Gráfica */}
-        <IngresosChart ingresosPorMes={ingresosPorMes} anio={2026} />
+        <IngresosChart ingresosPorMes={ingresosPorMes} anio={ANIO_ACTUAL} />
 
         {/* Pipeline */}
         <PipelineCards cotizaciones={cotizaciones} prospectos={prospectos} loading={loading} />
