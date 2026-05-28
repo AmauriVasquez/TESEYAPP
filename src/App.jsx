@@ -132,7 +132,14 @@ function App() {
 
               <Route path="ventas" element={<VentasModuleLayout />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
-                <Route path="dashboard" element={<VentasDashboard />} />
+                <Route
+                  path="dashboard"
+                  element={
+                    <ProtectedRoute requiredPermission={{ modulo: 'clientes', accion: 'ver' }}>
+                      <VentasDashboard />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="clientes"
                   element={
