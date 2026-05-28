@@ -21,6 +21,7 @@ import {
   Building2,
   Factory,
   CalendarClock,
+  LayoutDashboard,
 } from 'lucide-react';
 
 export function ComprasModuleLayout() {
@@ -78,10 +79,10 @@ export function VentasModuleLayout() {
       persistKey="ventas"
       title="Ventas"
       items={[
-        { to: '/ventas/clientes', label: 'Clientes', icon: Users },
-        { to: '/ventas/cotizaciones', label: 'Cotizaciones', icon: FileText },
+        { to: '/ventas/dashboard', label: 'Dashboard Ventas', icon: LayoutDashboard, end: true },
         { to: '/ventas/prospectos', label: 'Prospectos', icon: UserPlus },
-        { to: '/ventas/crm', label: 'CRM', icon: Kanban },
+        { to: '/ventas/clientes',   label: 'Clientes',   icon: Users },
+        { to: '/ventas/cotizaciones', label: 'Cotizaciones', icon: FileText },
       ]}
     >
       <Outlet />

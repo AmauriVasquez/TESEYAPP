@@ -21,6 +21,7 @@ import Reportes from '@/pages/Reportes';
 import Finanzas from '@/pages/Finanzas';
 import ControlPersonal from './pages/ControlPersonal';
 import AdminUsuarios from '@/pages/AdminUsuarios';
+import VentasDashboard from '@/pages/VentasDashboard';
 import Inventario from '@/pages/Inventario';
 import ActivosOperativoSeccion from '@/pages/ActivosOperativoSeccion';
 import ToolsManager from '@/components/tools/ToolsManager';
@@ -130,7 +131,8 @@ function App() {
               />
 
               <Route path="ventas" element={<VentasModuleLayout />}>
-                <Route index element={<Navigate to="clientes" replace />} />
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<VentasDashboard />} />
                 <Route
                   path="clientes"
                   element={
