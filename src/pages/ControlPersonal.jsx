@@ -1189,7 +1189,7 @@ const ControlPersonal = () => {
         </div>
 
         <Tabs defaultValue="asistencia" className="w-full">
-          <TabsList className="mb-4 bg-gray-100 p-1 rounded-lg">
+          <TabsList className="mb-4 bg-gray-100 p-1 rounded-lg flex flex-wrap h-auto gap-1">
             <TabsTrigger value="asistencia" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all"><CalendarDays className="w-4 h-4"/> Lista de Asistencia</TabsTrigger>
             <TabsTrigger value="empleados" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md transition-all"><Users className="w-4 h-4"/> Empleados y Vacaciones</TabsTrigger>
           </TabsList>

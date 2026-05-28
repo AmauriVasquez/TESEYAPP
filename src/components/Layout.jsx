@@ -245,7 +245,7 @@ const Layout = () => {
   const [isHoveredGlobal, setIsHoveredGlobal] = React.useState(false);
   const location = useLocation();
 
-  const isSidebarExpanded = isHoveredGlobal || !isCollapsed;
+  const isSidebarExpanded = isHoveredGlobal || !isCollapsed || isSidebarOpen;
 
   return (
     <div className="flex h-screen bg-gray-100">

@@ -452,7 +452,7 @@ const Finanzas = () => {
             <h2 className="text-2xl font-bold text-gray-900">Finanzas</h2>
             <p className="text-gray-600 mt-1">Control de ingresos y gastos</p>
           </div>
-          <div className="flex gap-2 flex-wrap items-center">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
               <DateRangePicker value={dateRange} onChange={setDateRange} />
               <Button

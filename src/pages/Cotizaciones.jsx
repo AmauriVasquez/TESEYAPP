@@ -453,7 +453,7 @@ const Cotizaciones = () => {
       </Helmet>
 
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Cotizaciones</h2>
             <p className="text-gray-600 mt-1">Crea y gestiona tus propuestas comerciales</p>
@@ -461,10 +461,12 @@ const Cotizaciones = () => {
         </div>
         
         <Tabs defaultValue="cotizaciones" className="w-full">
+            <div className="overflow-x-auto">
             <TabsList className="w-full md:w-auto grid w-full grid-cols-2 md:inline-flex">
                 <TabsTrigger value="cotizaciones">Cotizaciones</TabsTrigger>
                 <TabsTrigger value="catalogo">Catálogo de Servicios</TabsTrigger>
             </TabsList>
+            </div>
 
             <TabsContent value="cotizaciones" className="space-y-6 mt-6">
                 <div className="flex justify-end gap-2 flex-wrap">
@@ -488,8 +490,8 @@ const Cotizaciones = () => {
                 </div>
 
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4">
-                    <div className="relative flex-grow">
+                  <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-2 sm:items-center flex-wrap">
+                    <div className="relative w-full sm:flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <Input
                         type="text"
@@ -499,7 +501,7 @@ const Cotizaciones = () => {
                         className="w-full pl-10 pr-4 py-2"
                       />
                     </div>
-                    <div className="relative">
+                    <div className="flex flex-wrap gap-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="outline" className="w-full sm:w-auto gap-2">

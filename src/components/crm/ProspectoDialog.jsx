@@ -38,6 +38,7 @@ const INITIAL_FORM = {
   marca_origen: 'tesey',
   telefono: '',
   email: '',
+  sitio_web: '',
   ciudad: '',
   estado: '',
   industria: '',
@@ -84,6 +85,7 @@ const ProspectoDialog = ({ open, onOpenChange, prospectoEditar, onSave }) => {
         marca_origen: prospectoEditar.marca_origen || 'tesey',
         telefono: prospectoEditar.telefono || '',
         email: prospectoEditar.email || '',
+        sitio_web: prospectoEditar.sitio_web || '',
         ciudad: prospectoEditar.ciudad || '',
         estado: prospectoEditar.estado || '',
         industria: prospectoEditar.industria || '',
@@ -115,6 +117,7 @@ const ProspectoDialog = ({ open, onOpenChange, prospectoEditar, onSave }) => {
         marca_origen: formData.marca_origen,
         telefono: formData.telefono.trim() || null,
         email: formData.email.trim() || null,
+        sitio_web: formData.sitio_web.trim() || null,
         ciudad: formData.ciudad.trim() || null,
         estado: formData.estado.trim() || null,
         industria: formData.industria.trim() || null,
@@ -251,6 +254,17 @@ const ProspectoDialog = ({ open, onOpenChange, prospectoEditar, onSave }) => {
                 <Label htmlFor="email">Correo</Label>
                 <Input id="email" type="email" value={formData.email} onChange={handleChange} />
               </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="sitio_web">Sitio web</Label>
+              <Input
+                id="sitio_web"
+                type="url"
+                value={formData.sitio_web}
+                onChange={handleChange}
+                placeholder="https://ejemplo.com"
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
