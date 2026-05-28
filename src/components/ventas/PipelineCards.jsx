@@ -20,7 +20,7 @@ function StatRow({ label, value, sub, color }) {
 /**
  * @param {{
  *   cotizaciones: Array<{estatus: string, total: number}>,
- *   prospectos: Array<{estatus?: string}>,
+ *   prospectos: Array<{etapa?: string}>,
  *   loading: boolean
  * }} props
  */
@@ -33,8 +33,9 @@ export default function PipelineCards({ cotizaciones = [], prospectos = [], load
   const totalPipeline = [...borradores, ...enviadas].reduce((s, c) => s + (Number(c.total) || 0), 0);
   const totalAprobado = aprobadas.reduce((s, c) => s + (Number(c.total) || 0), 0);
 
-  const prospectoActivos     = prospectos.filter(p => !['convertido', 'descartado'].includes(p.estatus));
-  const prospectoConvertidos = prospectos.filter(p => p.estatus === 'convertido');
+  // FIX: usar etapa (no estatus) — columna real en tabla prospectos
+  const prospectoActivos     = prospectos.filter(p => !['convertido', 'descartado'].includes(p.etapa));
+  const prospectoConvertidos = prospectos.filter(p => p.etapa === 'convertido');
   const conversionPct = prospectos.length > 0
     ? Math.round((prospectoConvertidos.length / prospectos.length) * 100)
     : 0;
