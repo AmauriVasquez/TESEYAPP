@@ -40,7 +40,7 @@ export default function VentasDashboard() {
         supabase
           .from('proyecto_pagos')
           .select('monto, fecha_pago')
-          .gte('fecha_pago', '2026-01-01'),
+          .gte('fecha_pago', `${ANIO_ACTUAL}-01-01`),
 
         // Expanded: agrega marca_comercial, fecha, cliente nombre
         supabase
@@ -82,7 +82,7 @@ export default function VentasDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, ANIO_ACTUAL]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -119,8 +119,8 @@ export default function VentasDashboard() {
               style={{ borderColor: '#262B36', color: '#8892A4', background: '#171A21' }}
             >
               {loading
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <RefreshCw className="h-4 w-4" />
+                ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                : <RefreshCw className="h-4 w-4" aria-hidden="true" />
               }
               Actualizar
             </button>
@@ -136,9 +136,12 @@ export default function VentasDashboard() {
 
           {/* ── Tab switcher ───────────────────────────── */}
           <div className="flex rounded-xl p-1 w-fit gap-1"
+            role="tablist"
             style={{ background: '#171A21', border: '1px solid #262B36' }}>
             <button
               type="button"
+              role="tab"
+              aria-selected={tab === 'anual'}
               onClick={() => setTab('anual')}
               className="rounded-lg px-5 py-2 text-sm font-medium transition-all"
               style={tab === 'anual'
@@ -150,6 +153,8 @@ export default function VentasDashboard() {
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={tab === 'mensual'}
               onClick={() => setTab('mensual')}
               className="rounded-lg px-5 py-2 text-sm font-medium transition-all"
               style={tab === 'mensual'
