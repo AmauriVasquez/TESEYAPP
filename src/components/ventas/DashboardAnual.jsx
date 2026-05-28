@@ -1,151 +1,213 @@
 // src/components/ventas/DashboardAnual.jsx
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { DollarSign, CheckCircle, Users, TrendingUp } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { fmtMXNFull, META_ANUAL_2026 } from '@/config/ventasMetas';
-import IngresosChart from '@/components/ventas/IngresosChart';
+import {
+  ComposedChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, ReferenceLine, Area,
+} from 'recharts';
+import { METAS_VENTAS, META_ANUAL_2026, fmtMXN, fmtMXNFull } from '@/config/ventasMetas';
+import MarcaCards from '@/components/ventas/MarcaCards';
 
-function StatCard({ icon: Icon, label, value, sub, color, delay, loading }) {
+const DARK = {
+  card:    '#171A21',
+  border:  '#262B36',
+  muted:   '#8892A4',
+  text:    '#E8EDF5',
+  primary: '#4F8CFF',
+  success: '#35C759',
+  warning: '#FFB547',
+  danger:  '#FF5C5C',
+};
+
+function DarkKpiCard({ label, value, sub, delay = 0, loading }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.3 }}
-      className={cn(
-        'flex flex-col gap-2 rounded-xl border bg-white p-5 shadow-sm',
-        color === 'blue'   && 'border-blue-100',
-        color === 'green'  && 'border-green-100',
-        color === 'purple' && 'border-purple-100',
-        color === 'indigo' && 'border-indigo-100',
-      )}
+      className="rounded-xl p-5 flex flex-col gap-2"
+      style={{ background: DARK.card, border: `1px solid ${DARK.border}` }}
     >
-      <div className={cn(
-        'flex h-9 w-9 items-center justify-center rounded-lg',
-        color === 'blue'   && 'bg-blue-50   text-blue-600',
-        color === 'green'  && 'bg-green-50  text-green-600',
-        color === 'purple' && 'bg-purple-50 text-purple-600',
-        color === 'indigo' && 'bg-indigo-50 text-indigo-600',
-      )}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="text-xs font-medium uppercase tracking-wide" style={{ color: DARK.muted }}>
+        {label}
+      </p>
       {loading
-        ? <div className="h-7 w-24 animate-pulse rounded bg-gray-200" />
-        : <p className="text-xl font-bold text-gray-900">{value}</p>
+        ? <div className="h-7 w-28 rounded animate-pulse" style={{ background: DARK.border }} />
+        : <p className="text-2xl font-bold" style={{ color: DARK.text }}>{value}</p>
       }
-      {sub && <p className="text-xs text-gray-500">{sub}</p>}
+      {sub && <p className="text-xs" style={{ color: DARK.muted }}>{sub}</p>}
     </motion.div>
   );
 }
 
+function DarkTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg p-3 text-xs space-y-1 shadow-xl"
+      style={{ background: '#1E2330', border: `1px solid ${DARK.border}`, color: DARK.text }}>
+      <p className="font-semibold mb-1">{label}</p>
+      {payload.map((p) => (
+        <p key={p.name} style={{ color: p.color }}>
+          {p.name}: {fmtMXN(p.value ?? 0)}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 /**
- * Contenido del tab Anual del Dashboard de Ventas.
  * @param {{
  *   ingresosPorMes: Record<string, number>,
- *   cotizaciones: Array<{estatus: string, total: number}>,
- *   prospectos: Array<{etapa?: string}>,
+ *   cotizaciones: Array<{estatus: string, total: number, marca_comercial: string}>,
+ *   prospectos: Array<{etapa: string}>,
  *   loading: boolean,
  *   anio: number,
  * }} props
  */
 export default function DashboardAnual({ ingresosPorMes, cotizaciones, prospectos, loading, anio }) {
+  const NOW_MES = new Date().getMonth() + 1;
+
+  // Totales anuales
   const totalReal = useMemo(
     () => Object.entries(ingresosPorMes)
       .filter(([k]) => k.startsWith(`${anio}-`))
       .reduce((s, [, v]) => s + v, 0),
     [ingresosPorMes, anio]
   );
-  const pct = META_ANUAL_2026 > 0
+  const pctAnual = META_ANUAL_2026 > 0
     ? Math.min(100, Math.round((totalReal / META_ANUAL_2026) * 100))
     : 0;
 
-  // Pipeline stats
-  const aprobadas   = cotizaciones.filter(c => c.estatus === 'Aprobada');
-  const enProceso   = cotizaciones.filter(c => ['Borrador', 'Enviada'].includes(c.estatus));
-  const pipelineVal = [...enProceso, ...aprobadas].reduce((s, c) => s + (Number(c.total) || 0), 0);
+  // Promedio mensual (solo meses con datos)
+  const mesesConDatos = useMemo(
+    () => Object.entries(ingresosPorMes).filter(([k, v]) => k.startsWith(`${anio}-`) && v > 0).length,
+    [ingresosPorMes, anio]
+  );
+  const promedioMensual = mesesConDatos > 0 ? Math.round(totalReal / mesesConDatos) : 0;
+
+  // Crecimiento vs mes anterior
+  const crecimientoMes = useMemo(() => {
+    const mesKey  = `${anio}-${String(NOW_MES).padStart(2, '0')}`;
+    const prevMes  = NOW_MES === 1 ? 12 : NOW_MES - 1;
+    const prevAnio = NOW_MES === 1 ? anio - 1 : anio;
+    const prevKey  = `${prevAnio}-${String(prevMes).padStart(2, '0')}`;
+    const actual   = ingresosPorMes[mesKey] ?? 0;
+    const anterior = ingresosPorMes[prevKey] ?? 0;
+    if (anterior === 0) return null;
+    return Math.round(((actual - anterior) / anterior) * 100);
+  }, [ingresosPorMes, anio, NOW_MES]);
+
+  // Tasa de conversión
   const convertidos = prospectos.filter(p => p.etapa === 'convertido');
-  const activos     = prospectos.filter(p => !['convertido', 'descartado'].includes(p.etapa));
-  const convPct     = prospectos.length > 0
+  const tasaConv = prospectos.length > 0
     ? Math.round((convertidos.length / prospectos.length) * 100)
     : 0;
 
+  // Data para gráfica anual
+  const chartData = useMemo(() =>
+    (METAS_VENTAS || [])
+      .filter(m => m.anio === anio)
+      .map(m => {
+        const key = `${m.anio}-${String(m.mes).padStart(2, '0')}`;
+        const real = ingresosPorMes[key] ?? null;
+        const esPasado = m.mes <= NOW_MES;
+        return {
+          label: m.label,
+          real:  esPasado ? (real ?? 0) : null,
+          meta:  m.meta_ingresos,
+        };
+      }),
+    [ingresosPorMes, anio, NOW_MES]
+  );
+
   return (
     <div className="space-y-5">
-      {/* Barra de progreso anual */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0 }}
-        className="rounded-xl border bg-white p-5 shadow-sm"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <p className="text-sm font-semibold text-gray-700">Avance anual {anio}</p>
-          <p className="text-sm font-bold text-gray-900">
-            {loading ? '…' : fmtMXNFull(totalReal)} / {fmtMXNFull(META_ANUAL_2026)}
-            {' · '}
-            <span className={pct >= 100 ? 'text-green-700' : 'text-blue-700'}>{pct}%</span>
-          </p>
-        </div>
-        <div className="h-3 w-full overflow-hidden rounded-full bg-gray-100">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-700"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-        <p className="mt-1.5 text-xs text-gray-500">
-          Meta anual: {fmtMXNFull(META_ANUAL_2026)} · Faltan {fmtMXNFull(Math.max(0, META_ANUAL_2026 - totalReal))}
-        </p>
-      </motion.div>
-
-      {/* Gráfica 12 meses */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-      >
-        <IngresosChart ingresosPorMes={ingresosPorMes} anio={anio} />
-      </motion.div>
-
-      {/* 4 stat cards pipeline global */}
+      {/* ── Fila 1: 4 KPI cards ──────────────────────── */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard
-          icon={DollarSign}
-          label="Valor pipeline"
-          value={fmtMXNFull(pipelineVal)}
-          sub="Cotizaciones activas"
-          color="blue"
-          delay={0.1}
+        <DarkKpiCard
+          label="Ventas acumuladas"
+          value={fmtMXNFull(totalReal)}
+          sub={`${pctAnual}% de la meta anual`}
+          delay={0}
           loading={loading}
         />
-        <StatCard
-          icon={CheckCircle}
-          label="Cotizaciones aprobadas"
-          value={aprobadas.length}
-          sub={fmtMXNFull(aprobadas.reduce((s, c) => s + (Number(c.total) || 0), 0))}
-          color="green"
-          delay={0.15}
+        <DarkKpiCard
+          label="Promedio mensual"
+          value={fmtMXNFull(promedioMensual)}
+          sub={`${mesesConDatos} meses con datos`}
+          delay={0.07}
           loading={loading}
         />
-        <StatCard
-          icon={Users}
-          label="Prospectos activos"
-          value={activos.length}
-          sub="En proceso de conversión"
-          color="purple"
-          delay={0.2}
+        <DarkKpiCard
+          label="Crecimiento mensual"
+          value={crecimientoMes === null ? '—' : `${crecimientoMes > 0 ? '+' : ''}${crecimientoMes}%`}
+          sub="vs mes anterior"
+          delay={0.14}
           loading={loading}
         />
-        <StatCard
-          icon={TrendingUp}
+        <DarkKpiCard
           label="Tasa de conversión"
-          value={`${convPct}%`}
-          sub={`${convertidos.length} convertidos de ${prospectos.length}`}
-          color="indigo"
-          delay={0.25}
+          value={`${tasaConv}%`}
+          sub={`${convertidos.length} de ${prospectos.length} prospectos`}
+          delay={0.21}
           loading={loading}
         />
       </div>
+
+      {/* ── Fila 2: Tendencia anual ───────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="rounded-xl p-5"
+        style={{ background: DARK.card, border: `1px solid ${DARK.border}` }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold" style={{ color: DARK.text }}>
+              Tendencia anual {anio}
+            </h3>
+            <p className="text-xs mt-0.5" style={{ color: DARK.muted }}>
+              Ingresos reales vs meta mensual
+            </p>
+          </div>
+          <div className="flex items-center gap-4 text-xs" style={{ color: DARK.muted }}>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: DARK.primary }} />
+              Real
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-0.5 w-4" style={{ borderTop: '2px dashed #6366f1' }} />
+              Meta
+            </span>
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={220}>
+          <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="gradAnual" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor={DARK.primary} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={DARK.primary} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#262B36" />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: DARK.muted }} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={fmtMXN} tick={{ fontSize: 9, fill: DARK.muted }} width={50} axisLine={false} tickLine={false} />
+            <Tooltip content={<DarkTooltip />} />
+            <ReferenceLine y={250000} stroke={DARK.warning} strokeDasharray="5 5"
+              label={{ value: 'PE', position: 'insideTopRight', fontSize: 9, fill: DARK.warning }} />
+            <Area dataKey="real" name="Ingreso real" stroke={DARK.primary} fill="url(#gradAnual)"
+              strokeWidth={2} dot={{ r: 3, fill: DARK.primary }} activeDot={{ r: 4 }} />
+            <Line dataKey="meta" name="Meta" stroke="#6366f1" strokeDasharray="4 4"
+              strokeWidth={1.5} dot={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </motion.div>
+
+      {/* ── Fila 3: Cards por marca ───────────────────── */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <MarcaCards cotizaciones={cotizaciones} loading={loading} />
+      </motion.div>
     </div>
   );
 }
