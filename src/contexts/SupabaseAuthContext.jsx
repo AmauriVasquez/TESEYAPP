@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
@@ -12,7 +12,10 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const currentUserIdRef = useRef(null);
+
   const handleSession = useCallback(async (session) => {
+    currentUserIdRef.current = session?.user?.id ?? null;
     setSession(session);
     setUser(session?.user ?? null);
     setLoading(false);
@@ -56,6 +59,15 @@ export const AuthProvider = ({ children }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        const newUserId = session?.user?.id ?? null;
+        // Eventos como TOKEN_REFRESHED / SIGNED_IN / INITIAL_SESSION se disparan al
+        // cambiar de pestaña o al abrir la cámara (foto de entrega en móvil). Si el
+        // usuario no cambió, NO actualizamos estado: evita re-render que desmonta los
+        // modales abiertos (cotización, cliente, pedido, entrega).
+        if (newUserId && newUserId === currentUserIdRef.current) {
+          currentUserIdRef.current = newUserId;
+          return;
+        }
         handleSession(session);
       }
     );
