@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -123,6 +123,40 @@ const Cotizaciones = () => {
     }
     setLoading(false);
   }, [toast, filterStatus]);
+
+  const autoRechazarAntiguas = useCallback(async () => {
+    const now = new Date();
+    const inicioMesActual = new Date(now.getFullYear(), now.getMonth(), 1)
+      .toISOString()
+      .slice(0, 10);
+
+    const { data, error } = await supabase
+      .from('cotizaciones')
+      .update({ estatus: 'Rechazada' })
+      .in('estatus', ['Borrador', 'Enviada'])
+      .eq('es_ultima_version', true)
+      .lt('fecha', inicioMesActual)
+      .select('id');
+
+    if (error) {
+      console.error('autoRechazarAntiguas error:', error);
+    } else if (data && data.length > 0) {
+      toast({
+        title: `${data.length} cotización${data.length > 1 ? 'es' : ''} rechazada${data.length > 1 ? 's' : ''}`,
+        description: 'Cotizaciones de meses anteriores marcadas como Rechazadas automáticamente.',
+      });
+    }
+
+    await fetchCotizaciones();
+  }, [toast, fetchCotizaciones]);
+
+  const autoRechazarRanRef = useRef(false);
+
+  useEffect(() => {
+    if (autoRechazarRanRef.current) return;
+    autoRechazarRanRef.current = true;
+    autoRechazarAntiguas();
+  }, [autoRechazarAntiguas]);
 
   useEffect(() => {
     fetchCotizaciones();
