@@ -18,31 +18,51 @@ function fmtK(n) {
 /**
  * @param {{
  *   cotizaciones: Array<{estatus: string, total: number, marca_comercial: string, fecha?: string}>,
+ *   ingresosPorMarca?: Record<string, Record<string, number>>,
  *   loading: boolean,
  *   mes?: number,
  *   anio?: number,
  * }} props
- * Si mes/anio se proveen, filtra cotizaciones por mes (modo mensual).
+ * El monto $ proviene de ingresos reales (proyecto_pagos) por marca, no de
+ * cotizaciones aprobadas, porque el dinero no siempre entra el mes de aprobación.
+ * Los contadores (Aprobadas/Activas/Total) sí salen de cotizaciones.
+ * Si mes/anio se proveen, modo mensual; si solo anio, modo anual.
  */
-export default function MarcaCards({ cotizaciones = [], loading, mes, anio }) {
+export default function MarcaCards({ cotizaciones = [], ingresosPorMarca = {}, loading, mes, anio }) {
+  const mensual = mes != null && anio != null;
+
   const stats = useMemo(() => {
     let cots = cotizaciones;
-    if (mes != null && anio != null) {
+    if (mensual) {
       const prefix = `${anio}-${String(mes).padStart(2, '0')}`;
       cots = cotizaciones.filter(c => c.fecha && c.fecha.startsWith(prefix));
     }
 
-    const totalVentas = cots.reduce((s, c) => s + (c.estatus === 'Aprobada' ? (Number(c.total) || 0) : 0), 0);
+    // Ingresos reales por marca: mes específico (mensual) o suma del año (anual).
+    const ingresoDeMarca = (marcaId) => {
+      const porMes = ingresosPorMarca[marcaId] || {};
+      if (mensual) {
+        const key = `${anio}-${String(mes).padStart(2, '0')}`;
+        return Number(porMes[key] || 0);
+      }
+      return Object.entries(porMes).reduce(
+        (s, [k, v]) => s + (anio == null || k.startsWith(`${anio}-`) ? Number(v || 0) : 0),
+        0
+      );
+    };
 
-    return MARCAS.map(m => {
+    const valores     = MARCAS.map(m => ingresoDeMarca(m.id));
+    const totalVentas = valores.reduce((s, v) => s + v, 0);
+
+    return MARCAS.map((m, idx) => {
       const propias    = cots.filter(c => c.marca_comercial === m.id);
       const aprobadas  = propias.filter(c => c.estatus === 'Aprobada');
       const activas    = propias.filter(c => ['Borrador', 'Enviada'].includes(c.estatus));
-      const valorMarca = aprobadas.reduce((s, c) => s + (Number(c.total) || 0), 0);
+      const valorMarca = valores[idx];
       const pct        = totalVentas > 0 ? Math.round((valorMarca / totalVentas) * 100) : 0;
       return { ...m, aprobadas: aprobadas.length, activas: activas.length, valor: valorMarca, pct, total: propias.length };
     });
-  }, [cotizaciones, mes, anio]);
+  }, [cotizaciones, ingresosPorMarca, mensual, mes, anio]);
 
   if (loading) {
     return (
@@ -81,7 +101,7 @@ export default function MarcaCards({ cotizaciones = [], loading, mes, anio }) {
           {/* Valor */}
           <div>
             <p className="text-2xl font-bold text-gray-900">{fmtK(m.valor)}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Valor en ventas</p>
+            <p className="text-xs text-gray-400 mt-0.5">{mensual ? 'Ingresos del mes' : 'Ingresos del año'}</p>
           </div>
 
           {/* Stats */}

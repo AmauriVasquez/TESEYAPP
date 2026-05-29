@@ -54,7 +54,7 @@ function LightTooltip({ active, payload, label }) {
  *   anio: number,
  * }} props
  */
-export default function DashboardAnual({ ingresosPorMes, cotizaciones, prospectos, loading, anio }) {
+export default function DashboardAnual({ ingresosPorMes, ingresosPorMarca, cotizaciones, prospectos, loading, anio }) {
   const NOW_MES = new Date().getMonth() + 1;
 
   const totalReal = useMemo(
@@ -185,7 +185,7 @@ export default function DashboardAnual({ ingresosPorMes, cotizaciones, prospecto
 
       {/* ── Fila 3: Cards por marca ──────────────────── */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-        <MarcaCards cotizaciones={cotizaciones} loading={loading} />
+        <MarcaCards cotizaciones={cotizaciones} ingresosPorMarca={ingresosPorMarca} loading={loading} anio={anio} />
       </motion.div>
     </div>
   );
