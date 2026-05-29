@@ -11,6 +11,9 @@ import ProspectoKanban from '@/components/crm/ProspectoKanban';
 import ProspectoDialog from '@/components/crm/ProspectoDialog';
 import ProspectoDetalle from '@/components/crm/ProspectoDetalle';
 
+const fmtMXN = (n) =>
+  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(Number(n) || 0);
+
 const Prospectos = () => {
   const { toast } = useToast();
   const [prospectos, setProspectos] = useState([]);
@@ -21,6 +24,7 @@ const Prospectos = () => {
   const [prospectoEditar, setProspectoEditar] = useState(null);
   const [detalleOpen, setDetalleOpen] = useState(false);
   const [prospectoSeleccionado, setProspectoSeleccionado] = useState(null);
+  const [clientesNuevosMes, setClientesNuevosMes] = useState(0);
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -43,9 +47,21 @@ const Prospectos = () => {
     setLoading(false);
   }, [toast]);
 
+  const fetchClientesNuevos = useCallback(async () => {
+    const ahora = new Date();
+    const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).toISOString();
+    const { count } = await supabase
+      .from('clientes')
+      .select('id', { count: 'exact', head: true })
+      .eq('fuente_origen', 'prospecto_convertido')
+      .gte('created_at', inicioMes);
+    setClientesNuevosMes(count || 0);
+  }, []);
+
   useEffect(() => {
     refetch();
-  }, [refetch]);
+    fetchClientesNuevos();
+  }, [refetch, fetchClientesNuevos]);
 
   const activosCount = useMemo(
     () =>
@@ -54,6 +70,21 @@ const Prospectos = () => {
       ).length,
     [prospectos]
   );
+
+  const valorPipeline = useMemo(
+    () =>
+      prospectos
+        .filter((p) => p.etapa !== 'convertido' && p.etapa !== 'descartado')
+        .reduce((acc, p) => acc + (Number(p.valor_estimado) || 0), 0),
+    [prospectos]
+  );
+
+  const tasaConversion = useMemo(() => {
+    const convertidos = prospectos.filter((p) => p.etapa === 'convertido').length;
+    const descartados = prospectos.filter((p) => p.etapa === 'descartado').length;
+    const cerrados = convertidos + descartados;
+    return cerrados === 0 ? null : Math.round((convertidos / cerrados) * 100);
+  }, [prospectos]);
 
   const filtrados = useMemo(() => {
     return prospectos.filter((p) => {
@@ -94,6 +125,20 @@ const Prospectos = () => {
             <Plus className="w-4 h-4" />
             Nuevo Prospecto
           </Button>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Prospectos activos', value: activosCount },
+            { label: 'Valor en pipeline', value: fmtMXN(valorPipeline) },
+            { label: 'Clientes nuevos (mes)', value: clientesNuevosMes },
+            { label: 'Tasa de conversión', value: tasaConversion == null ? '—' : `${tasaConversion}%` },
+          ].map((m) => (
+            <div key={m.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{m.label}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{m.value}</p>
+            </div>
+          ))}
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-wrap">
