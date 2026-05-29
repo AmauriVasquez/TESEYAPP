@@ -37,6 +37,8 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
   const [loading, setLoading] = useState(false);
   const [usarMismoNombre, setUsarMismoNombre] = useState(false);
   const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
+  const [rfcNoAplica, setRfcNoAplica] = useState(false);
+  const [emailNoAplica, setEmailNoAplica] = useState(false);
 
   const [formData, setFormData] = useState({
     nombre: '',
@@ -75,6 +77,8 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
           notas_crm: clienteToEdit.notas_crm || '',
         });
         setUsarMismoNombre(false);
+        setRfcNoAplica(!clienteToEdit.rfc);
+        setEmailNoAplica(!clienteToEdit.email);
       } else {
         setFormData({
           nombre: '',
@@ -93,6 +97,8 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
           notas_crm: '',
         });
         setUsarMismoNombre(false);
+        setRfcNoAplica(false);
+        setEmailNoAplica(false);
       }
     }
   }, [open, clienteToEdit]);
@@ -118,7 +124,25 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
     }
   };
 
+  const handleRfcNoAplica = (checked) => {
+    setRfcNoAplica(checked);
+    if (checked) setFormData((prev) => ({ ...prev, rfc: '' }));
+  };
+
+  const handleEmailNoAplica = (checked) => {
+    setEmailNoAplica(checked);
+    if (checked) setFormData((prev) => ({ ...prev, email: '' }));
+  };
+
   const performSave = async () => {
+    if (!String(formData.telefono).trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Teléfono requerido',
+        description: 'Captura un número de teléfono para guardar el cliente.',
+      });
+      return;
+    }
     setLoading(true);
     try {
       const dataToSave = {
@@ -229,33 +253,52 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="rfc">RFC</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="rfc">RFC</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="rfcNoAplica" checked={rfcNoAplica} onCheckedChange={handleRfcNoAplica} />
+                  <label htmlFor="rfcNoAplica" className="text-xs font-medium text-gray-500 cursor-pointer">
+                    No aplica
+                  </label>
+                </div>
+              </div>
               <Input
                 id="rfc"
                 value={formData.rfc}
                 onChange={handleChange}
                 placeholder="XAXX010101000"
+                disabled={rfcNoAplica}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="telefono">Teléfono</Label>
+              <Label htmlFor="telefono">Teléfono *</Label>
               <Input
                 id="telefono"
                 value={formData.telefono}
                 onChange={handleChange}
                 placeholder="(999) 123-4567"
+                required
               />
             </div>
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="email">Correo Electrónico</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="email">Correo Electrónico</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox id="emailNoAplica" checked={emailNoAplica} onCheckedChange={handleEmailNoAplica} />
+                <label htmlFor="emailNoAplica" className="text-xs font-medium text-gray-500 cursor-pointer">
+                  No aplica
+                </label>
+              </div>
+            </div>
             <Input
               id="email"
               type="email"
               value={formData.email}
               onChange={handleChange}
               placeholder="contacto@empresa.com"
+              disabled={emailNoAplica}
             />
           </div>
 
