@@ -247,7 +247,7 @@ const CalendarView = ({ proyectos, empleados = [], citas = [], onSelectCita }) =
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 md:gap-6 w-full h-full min-h-[500px] bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="flex flex-col lg:flex-row gap-4 md:gap-6 w-full h-full min-h-[420px] bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       {/* Sidebar izquierdo */}
       <aside className="w-full lg:w-72 shrink-0 flex flex-col gap-4 border-b lg:border-b-0 lg:border-r border-gray-200 p-4 overflow-y-auto bg-white rounded-t-2xl lg:rounded-tr-none lg:rounded-l-2xl">
         <div>
@@ -298,7 +298,7 @@ const CalendarView = ({ proyectos, empleados = [], citas = [], onSelectCita }) =
       </aside>
 
       {/* Área del calendario principal */}
-      <main className="w-full flex-1 min-h-[500px] md:min-h-[700px] bg-white rounded-lg shadow p-2 md:p-4 overflow-x-auto flex flex-col min-w-0">
+      <main className="w-full flex-1 min-h-[420px] bg-white rounded-lg shadow p-2 md:p-4 overflow-x-auto flex flex-col min-w-0">
         <div className="flex-1 flex flex-col min-h-0" style={{ height: '100%', minHeight: 400 }}>
           <Calendar
             localizer={localizer}
