@@ -92,7 +92,7 @@ const Calendario = () => {
       <Helmet>
         <title>Calendario - IIHEMSA Peninsular</title>
       </Helmet>
-      <div className="flex flex-col h-[calc(100vh-80px)] min-h-0">
+      <div className="flex flex-col min-h-[calc(100vh-80px)]">
         <div className="shrink-0 mb-2">
           <h2 className="text-2xl font-bold text-gray-900">Calendario</h2>
           <p className="text-gray-600 mt-1 text-sm">
@@ -104,7 +104,7 @@ const Calendario = () => {
             <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
           </div>
         ) : (
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-[600px]">
             <CalendarView
               proyectos={proyectos}
               empleados={empleados}
