@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Helmet } from 'react-helmet';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Table2, Kanban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
 import { MARCAS_COMERCIALES } from '@/lib/brandingConfig';
 import ProspectoKanban from '@/components/crm/ProspectoKanban';
+import ProspectoTabla from '@/components/crm/ProspectoTabla';
 import ProspectoDialog from '@/components/crm/ProspectoDialog';
 import ProspectoDetalle from '@/components/crm/ProspectoDetalle';
 
@@ -25,6 +26,8 @@ const Prospectos = () => {
   const [detalleOpen, setDetalleOpen] = useState(false);
   const [prospectoSeleccionado, setProspectoSeleccionado] = useState(null);
   const [clientesNuevosMes, setClientesNuevosMes] = useState(0);
+  const [vista, setVista] = useState('tabla');
+  const [ultimaInteraccion, setUltimaInteraccion] = useState({});
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -58,10 +61,24 @@ const Prospectos = () => {
     setClientesNuevosMes(count || 0);
   }, []);
 
+  const fetchUltimas = useCallback(async () => {
+    const { data } = await supabase
+      .from('crm_interacciones')
+      .select('prospecto_id, fecha')
+      .eq('eliminado', false)
+      .order('fecha', { ascending: false });
+    const map = {};
+    (data || []).forEach((row) => {
+      if (row.prospecto_id && !map[row.prospecto_id]) map[row.prospecto_id] = row.fecha;
+    });
+    setUltimaInteraccion(map);
+  }, []);
+
   useEffect(() => {
     refetch();
     fetchClientesNuevos();
-  }, [refetch, fetchClientesNuevos]);
+    fetchUltimas();
+  }, [refetch, fetchClientesNuevos, fetchUltimas]);
 
   const activosCount = useMemo(
     () =>
@@ -180,6 +197,23 @@ const Prospectos = () => {
               Mostrar convertidos/descartados
             </Label>
           </div>
+
+          <div className="flex gap-1 sm:ml-auto bg-gray-100 rounded-lg p-1">
+            <button
+              type="button"
+              onClick={() => setVista('tabla')}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${vista === 'tabla' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+            >
+              <Table2 className="w-4 h-4" /> Tabla
+            </button>
+            <button
+              type="button"
+              onClick={() => setVista('kanban')}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${vista === 'kanban' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+            >
+              <Kanban className="w-4 h-4" /> Kanban
+            </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 min-h-[320px]">
@@ -192,11 +226,17 @@ const Prospectos = () => {
               <p className="text-lg font-medium">No hay prospectos</p>
               <p className="text-sm mt-1">Ajusta los filtros o crea un nuevo prospecto.</p>
             </div>
-          ) : (
+          ) : vista === 'kanban' ? (
             <ProspectoKanban
               prospectos={filtrados}
               onCardClick={handleCardClick}
               onRefetch={refetch}
+            />
+          ) : (
+            <ProspectoTabla
+              prospectos={filtrados}
+              onCardClick={handleCardClick}
+              ultimaInteraccion={ultimaInteraccion}
             />
           )}
         </div>
