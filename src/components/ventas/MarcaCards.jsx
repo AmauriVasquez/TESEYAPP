@@ -32,14 +32,14 @@ export default function MarcaCards({ cotizaciones = [], loading, mes, anio }) {
       cots = cotizaciones.filter(c => c.fecha && c.fecha.startsWith(prefix));
     }
 
-    const totalValor = cots.reduce((s, c) => s + (Number(c.total) || 0), 0) || 1;
+    const totalVentas = cots.reduce((s, c) => s + (c.estatus === 'Aprobada' ? (Number(c.total) || 0) : 0), 0);
 
     return MARCAS.map(m => {
       const propias    = cots.filter(c => c.marca_comercial === m.id);
       const aprobadas  = propias.filter(c => c.estatus === 'Aprobada');
       const activas    = propias.filter(c => ['Borrador', 'Enviada'].includes(c.estatus));
-      const valorMarca = propias.reduce((s, c) => s + (Number(c.total) || 0), 0);
-      const pct        = Math.round((valorMarca / totalValor) * 100);
+      const valorMarca = aprobadas.reduce((s, c) => s + (Number(c.total) || 0), 0);
+      const pct        = totalVentas > 0 ? Math.round((valorMarca / totalVentas) * 100) : 0;
       return { ...m, aprobadas: aprobadas.length, activas: activas.length, valor: valorMarca, pct, total: propias.length };
     });
   }, [cotizaciones, mes, anio]);
@@ -81,7 +81,7 @@ export default function MarcaCards({ cotizaciones = [], loading, mes, anio }) {
           {/* Valor */}
           <div>
             <p className="text-2xl font-bold text-gray-900">{fmtK(m.valor)}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Valor en cotizaciones</p>
+            <p className="text-xs text-gray-400 mt-0.5">Valor en ventas</p>
           </div>
 
           {/* Stats */}
