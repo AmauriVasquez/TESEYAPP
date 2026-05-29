@@ -26,21 +26,23 @@ export default function VentasDashboard() {
   const [tab, setTab] = useState('anual');
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(false);
-  const [ingresosPorMes, setIngresosPorMes] = useState({});
-  const [cotizaciones, setCotizaciones]     = useState([]);
-  const [prospectos, setProspectos]         = useState([]);
+  const [ingresosPorMes, setIngresosPorMes]     = useState({});
+  const [ingresosPorMarca, setIngresosPorMarca] = useState({});
+  const [cotizaciones, setCotizaciones]         = useState([]);
+  const [prospectos, setProspectos]             = useState([]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(false);
     setIngresosPorMes({});
+    setIngresosPorMarca({});
     setCotizaciones([]);
     setProspectos([]);
     try {
       const [pagosRes, cotRes, prospRes] = await Promise.all([
         supabase
           .from('proyecto_pagos')
-          .select('monto, fecha_pago')
+          .select('monto, fecha_pago, proyecto:proyecto_id(cotizacion:cotizacion_id(marca_comercial))')
           .gte('fecha_pago', `${ANIO_ACTUAL}-01-01`),
 
         supabase
@@ -65,12 +67,21 @@ export default function VentasDashboard() {
       }));
 
       const mapa = {};
+      const mapaMarca = {};
       for (const pago of pagosRes.data || []) {
         if (!pago.fecha_pago) continue;
         const key = pago.fecha_pago.slice(0, 7);
-        mapa[key] = (mapa[key] || 0) + Number(pago.monto || 0);
+        const monto = Number(pago.monto || 0);
+        mapa[key] = (mapa[key] || 0) + monto;
+
+        const marca = pago.proyecto?.cotizacion?.marca_comercial;
+        if (marca) {
+          mapaMarca[marca] = mapaMarca[marca] || {};
+          mapaMarca[marca][key] = (mapaMarca[marca][key] || 0) + monto;
+        }
       }
       setIngresosPorMes(mapa);
+      setIngresosPorMarca(mapaMarca);
       setCotizaciones(cotNormalizadas);
       setProspectos(prospRes.data || []);
     } catch (err) {
@@ -160,6 +171,7 @@ export default function VentasDashboard() {
         {tab === 'anual' ? (
           <DashboardAnual
             ingresosPorMes={ingresosPorMes}
+            ingresosPorMarca={ingresosPorMarca}
             cotizaciones={cotizaciones}
             prospectos={prospectos}
             loading={loading}
@@ -168,6 +180,7 @@ export default function VentasDashboard() {
         ) : (
           <DashboardMensual
             ingresosPorMes={ingresosPorMes}
+            ingresosPorMarca={ingresosPorMarca}
             cotizaciones={cotizaciones}
             prospectos={prospectos}
             loading={loading}

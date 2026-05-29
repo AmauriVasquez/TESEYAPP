@@ -45,7 +45,7 @@ function MensualKpiCard({ label, value, sub, progress, progressColor, delay, loa
  *   anio: number,
  * }} props
  */
-export default function DashboardMensual({ ingresosPorMes, cotizaciones, prospectos, loading, mes, anio }) {
+export default function DashboardMensual({ ingresosPorMes, ingresosPorMarca, cotizaciones, prospectos, loading, mes, anio }) {
   const metaMes = useMemo(() => getMetaMes(mes, anio), [mes, anio]);
 
   const ingresoMes = useMemo(() => {
@@ -107,7 +107,7 @@ export default function DashboardMensual({ ingresosPorMes, cotizaciones, prospec
 
       {/* ── Fila 3: Cards por marca (filtradas por mes) ─ */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-        <MarcaCards cotizaciones={cotizaciones} loading={loading} mes={mes} anio={anio} />
+        <MarcaCards cotizaciones={cotizaciones} ingresosPorMarca={ingresosPorMarca} loading={loading} mes={mes} anio={anio} />
       </motion.div>
 
       {/* ── Fila 4: Tabla oportunidades ──────────────── */}

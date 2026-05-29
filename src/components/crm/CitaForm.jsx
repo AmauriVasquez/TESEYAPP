@@ -60,12 +60,17 @@ const CitaForm = ({ open, onOpenChange, prospectoId, marcaOrigen, onSave }) => {
         `${form.fecha}T${form.hora}:00`
       ).toISOString();
 
+      const tipoLabel =
+        TIPOS_CITA.find((t) => t.value === form.tipo)?.label || form.tipo;
+      const descripcionFinal =
+        form.descripcion.trim() || `Cita programada: ${tipoLabel}`;
+
       const { error } = await supabase.from('crm_interacciones').insert([
         {
           prospecto_id: prospectoId,
           marca_origen: marcaOrigen,
           tipo: form.tipo,
-          descripcion: form.descripcion.trim() || null,
+          descripcion: descripcionFinal,
           fecha: form.fecha,
           programada: true,
           fecha_hora_programada,

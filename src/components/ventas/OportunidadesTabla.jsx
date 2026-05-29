@@ -40,9 +40,8 @@ function fmtFecha(str) {
 export default function OportunidadesTabla({ cotizaciones = [], loading }) {
   const activas = useMemo(() =>
     cotizaciones
-      .filter(c => ['Borrador', 'Enviada', 'Aprobada'].includes(c.estatus))
-      .sort((a, b) => (b.total || 0) - (a.total || 0))
-      .slice(0, 10),
+      .filter(c => ['Borrador', 'Enviada'].includes(c.estatus))
+      .sort((a, b) => (b.total || 0) - (a.total || 0)),
     [cotizaciones]
   );
 
@@ -64,7 +63,7 @@ export default function OportunidadesTabla({ cotizaciones = [], loading }) {
           <p className="text-sm text-gray-400">No hay oportunidades activas</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[28rem]">
           <table className="w-full text-sm min-w-[600px]">
             <thead>
               <tr className="border-b border-gray-50">
