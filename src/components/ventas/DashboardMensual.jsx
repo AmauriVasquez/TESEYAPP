@@ -64,10 +64,16 @@ export default function DashboardMensual({ ingresosPorMes, ingresosPorMarca, cot
     .filter(c => ['Borrador', 'Enviada', 'Aprobada'].includes(c.estatus))
     .reduce((s, c) => s + (Number(c.total) || 0), 0);
 
+  // Conversión de cotizaciones (Aprobadas = volvieron proyecto/venta) ÷ total
+  const cotAprobadas     = cotizaciones.filter(c => c.estatus === 'Aprobada');
+  const convCotizaciones = cotizaciones.length > 0
+    ? Math.round((cotAprobadas.length / cotizaciones.length) * 100)
+    : 0;
+
   return (
     <div className="space-y-5">
-      {/* ── Fila 1: 4 KPIs mensuales ─────────────────── */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      {/* ── Fila 1: 5 KPIs mensuales ─────────────────── */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
         <MensualKpiCard
           label="Objetivo del mes"
           value={fmtMXNFull(meta)}
@@ -89,6 +95,13 @@ export default function DashboardMensual({ ingresosPorMes, ingresosPorMarca, cot
           value={activas.length}
           sub="Borrador + Enviadas"
           delay={0.14}
+          loading={loading}
+        />
+        <MensualKpiCard
+          label="Conversión cotizaciones"
+          value={`${convCotizaciones}%`}
+          sub={`${cotAprobadas.length} de ${cotizaciones.length} cotizaciones`}
+          delay={0.18}
           loading={loading}
         />
         <MensualKpiCard

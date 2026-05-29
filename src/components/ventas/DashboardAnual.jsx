@@ -82,9 +82,27 @@ export default function DashboardAnual({ ingresosPorMes, ingresosPorMarca, cotiz
     return Math.round(((actual - anterior) / anterior) * 100);
   }, [ingresosPorMes, anio, NOW_MES]);
 
-  const convertidos = prospectos.filter(p => p.etapa === 'convertido');
-  const tasaConv    = prospectos.length > 0
-    ? Math.round((convertidos.length / prospectos.length) * 100)
+  // ── Métricas del año en curso ──────────────────
+  // Cotizaciones del año (por su fecha)
+  const cotsAnio = useMemo(
+    () => (cotizaciones || []).filter(c => c.fecha && c.fecha.startsWith(`${anio}-`)),
+    [cotizaciones, anio]
+  );
+  const cotAprobadasAnio = cotsAnio.filter(c => c.estatus === 'Aprobada');
+  const convCotizaciones = cotsAnio.length > 0
+    ? Math.round((cotAprobadasAnio.length / cotsAnio.length) * 100)
+    : 0;
+  const pipelineAnual = cotsAnio
+    .filter(c => ['Borrador', 'Enviada', 'Aprobada'].includes(c.estatus))
+    .reduce((s, c) => s + (Number(c.total) || 0), 0);
+
+  // Prospectos del año (por created_at) → tasa de conversión del año, no histórica
+  const prospectosAnio = (prospectos || []).filter(
+    p => p.created_at && p.created_at.startsWith(`${anio}-`)
+  );
+  const convertidos = prospectosAnio.filter(p => p.etapa === 'convertido');
+  const tasaConv    = prospectosAnio.length > 0
+    ? Math.round((convertidos.length / prospectosAnio.length) * 100)
     : 0;
 
   const crecimientoColor = crecimientoMes === null
@@ -108,11 +126,11 @@ export default function DashboardAnual({ ingresosPorMes, ingresosPorMarca, cotiz
 
   return (
     <div className="space-y-5">
-      {/* ── Fila 1: Gauge + 3 KPIs ──────────────────── */}
+      {/* ── Fila 1: Gauge + 5 KPIs ──────────────────── */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <GaugeAnual totalReal={totalReal} loading={loading} />
 
-        <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 content-start">
+        <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 content-start">
           <KpiCard
             label="Promedio mensual"
             value={fmtMXNFull(promedioMensual)}
@@ -131,8 +149,22 @@ export default function DashboardAnual({ ingresosPorMes, ingresosPorMarca, cotiz
           <KpiCard
             label="Tasa de conversión"
             value={`${tasaConv}%`}
-            sub={`${convertidos.length} de ${prospectos.length} prospectos`}
+            sub={`${convertidos.length} de ${prospectosAnio.length} prospectos`}
             delay={0.21}
+            loading={loading}
+          />
+          <KpiCard
+            label="Conversión cotizaciones"
+            value={`${convCotizaciones}%`}
+            sub={`${cotAprobadasAnio.length} de ${cotsAnio.length} cotizaciones`}
+            delay={0.28}
+            loading={loading}
+          />
+          <KpiCard
+            label="Pipeline monetario"
+            value={fmtMXNFull(pipelineAnual)}
+            sub="Borrador + Enviadas + Aprobadas"
+            delay={0.35}
             loading={loading}
           />
         </div>

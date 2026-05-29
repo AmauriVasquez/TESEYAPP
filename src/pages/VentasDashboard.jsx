@@ -53,7 +53,7 @@ export default function VentasDashboard() {
 
         supabase
           .from('prospectos')
-          .select('id, etapa, marca_origen, nombre')
+          .select('id, etapa, marca_origen, nombre, created_at')
           .eq('eliminado', false),
       ]);
 
