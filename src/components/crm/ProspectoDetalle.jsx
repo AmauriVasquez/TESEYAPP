@@ -19,12 +19,14 @@ import {
   Globe,
   CalendarDays,
   CheckCircle2,
+  FilePlus2,
 } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 import InteraccionForm from '@/components/crm/InteraccionForm';
 import CitaForm from '@/components/crm/CitaForm';
 import MarcarRealizadaForm from '@/components/crm/MarcarRealizadaForm';
+import CotizacionDialog from '@/components/cotizaciones/CotizacionDialog';
 
 const MARCA_BADGE = {
   tesey: 'bg-emerald-100 text-emerald-800',
@@ -110,6 +112,7 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
   const [citaFormOpen, setCitaFormOpen] = useState(false);
   const [marcarRealizadaOpen, setMarcarRealizadaOpen] = useState(false);
   const [selectedCita, setSelectedCita] = useState(null);
+  const [cotizacionOpen, setCotizacionOpen] = useState(false);
 
   const fetchInteracciones = useCallback(async () => {
     if (!prospecto?.id) return;
@@ -211,6 +214,18 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
                   <UserCheck className="w-4 h-4" />
                 )}
                 Convertir a cliente
+              </Button>
+            )}
+            {puedeConvertir && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-2 ml-2 gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                onClick={() => setCotizacionOpen(true)}
+              >
+                <FilePlus2 className="w-4 h-4" />
+                Generar cotización
               </Button>
             )}
           </DialogHeader>
@@ -472,6 +487,16 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
         prospectoId={prospecto.id}
         onSave={fetchInteracciones}
         onRefetch={onRefetch}
+      />
+
+      <CotizacionDialog
+        open={cotizacionOpen}
+        onOpenChange={setCotizacionOpen}
+        prospecto={prospecto}
+        onSave={() => {
+          setCotizacionOpen(false);
+          onRefetch?.();
+        }}
       />
     </>
   );

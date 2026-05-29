@@ -25,7 +25,7 @@ import { BRANDINGS, DEFAULT_BRANDING_ID, MARCAS_COMERCIALES, DEFAULT_MARCA_COMER
 // import jsPDF from 'jspdf';
 // import { uploadQuotePdfToDrive } from '@/services/driveUploadService';
 
-const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onSave }) => {
+const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onSave, prospecto = null }) => {
   const { toast } = useToast();
   
   // Global Form State
@@ -131,6 +131,14 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
         if (!cotizacion) {
             const folio = await generateFolio();
             setNextFolio(folio);
+            // Prefill desde un prospecto (cotización ligada): cliente externo + marca
+            const prospectoOverrides = prospecto
+                ? {
+                      cliente_id: null,
+                      cliente_nombre_externo: prospecto.nombre ?? '',
+                      marca_comercial: prospecto.marca_origen || DEFAULT_MARCA_COMERCIAL,
+                  }
+                : {};
             if (initialTemplate) {
                 const { data: itemsData, error: itemsError } = await supabase
                     .from('cotizaciones_items')
@@ -150,10 +158,11 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
                     descuento_monto: initialTemplate.descuento_monto ?? 0,
                     branding: initialTemplate.branding || DEFAULT_BRANDING_ID,
                     marca_comercial: initialTemplate.marca_comercial || DEFAULT_MARCA_COMERCIAL,
+                    ...prospectoOverrides,
                 });
                 setItems(itemsData || []);
             } else {
-                setFormData({ ...initialFormState });
+                setFormData({ ...initialFormState, ...prospectoOverrides });
                 setItems([]);
             }
         } else {
@@ -181,7 +190,7 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
     } finally {
         setLoading(false);
     }
-  }, [toast, cotizacion, initialTemplate, generateFolio]);
+  }, [toast, cotizacion, initialTemplate, generateFolio, prospecto]);
   
   useEffect(() => {
     if(open) {
@@ -323,6 +332,7 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
 
         } else { // Create
             quoteData.folio = nextFolio;
+            quoteData.prospecto_id = prospecto?.id ?? null;
             const { data: newQuote, error: quoteError } = await supabase
                 .from('cotizaciones')
                 .insert(quoteData)
