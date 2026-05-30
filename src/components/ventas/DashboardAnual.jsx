@@ -92,9 +92,8 @@ export default function DashboardAnual({ ingresosPorMes, ingresosPorMarca, cotiz
   const convCotizaciones = cotsAnio.length > 0
     ? Math.round((cotAprobadasAnio.length / cotsAnio.length) * 100)
     : 0;
-  const pipelineAnual = cotsAnio
-    .filter(c => ['Borrador', 'Enviada', 'Aprobada'].includes(c.estatus))
-    .reduce((s, c) => s + (Number(c.total) || 0), 0);
+  // Pipeline = TODAS las cotizaciones del año (incluye Rechazadas): monto total cotizado
+  const pipelineAnual = cotsAnio.reduce((s, c) => s + (Number(c.total) || 0), 0);
 
   // Prospectos del año (por created_at) → tasa de conversión del año, no histórica
   const prospectosAnio = (prospectos || []).filter(
@@ -163,7 +162,7 @@ export default function DashboardAnual({ ingresosPorMes, ingresosPorMarca, cotiz
           <KpiCard
             label="Pipeline monetario"
             value={fmtMXNFull(pipelineAnual)}
-            sub="Borrador + Enviadas + Aprobadas"
+            sub="Todas las cotizaciones del año"
             delay={0.35}
             loading={loading}
           />

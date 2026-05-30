@@ -59,15 +59,20 @@ export default function DashboardMensual({ ingresosPorMes, ingresosPorMarca, cot
     : pctMeta >= 50 ? '#3B82F6'
     : '#F59E0B';
 
-  const activas  = cotizaciones.filter(c => ['Borrador', 'Enviada'].includes(c.estatus));
-  const pipeline = cotizaciones
-    .filter(c => ['Borrador', 'Enviada', 'Aprobada'].includes(c.estatus))
-    .reduce((s, c) => s + (Number(c.total) || 0), 0);
+  // Cotizaciones del mes en curso (por su fecha) — todo el mensual se basa en esto
+  const cotsMes = useMemo(() => {
+    const prefix = `${anio}-${String(mes).padStart(2, '0')}`;
+    return cotizaciones.filter(c => c.fecha && c.fecha.startsWith(prefix));
+  }, [cotizaciones, mes, anio]);
 
-  // Conversión de cotizaciones (Aprobadas = volvieron proyecto/venta) ÷ total
-  const cotAprobadas     = cotizaciones.filter(c => c.estatus === 'Aprobada');
-  const convCotizaciones = cotizaciones.length > 0
-    ? Math.round((cotAprobadas.length / cotizaciones.length) * 100)
+  const activas  = cotsMes.filter(c => ['Borrador', 'Enviada'].includes(c.estatus));
+  // Pipeline = TODAS las cotizaciones del mes (incluye Rechazadas): monto total cotizado
+  const pipeline = cotsMes.reduce((s, c) => s + (Number(c.total) || 0), 0);
+
+  // Conversión de cotizaciones (Aprobadas = volvieron proyecto/venta) ÷ total del mes
+  const cotAprobadas     = cotsMes.filter(c => c.estatus === 'Aprobada');
+  const convCotizaciones = cotsMes.length > 0
+    ? Math.round((cotAprobadas.length / cotsMes.length) * 100)
     : 0;
 
   return (
@@ -100,14 +105,14 @@ export default function DashboardMensual({ ingresosPorMes, ingresosPorMarca, cot
         <MensualKpiCard
           label="Conversión cotizaciones"
           value={`${convCotizaciones}%`}
-          sub={`${cotAprobadas.length} de ${cotizaciones.length} cotizaciones`}
+          sub={`${cotAprobadas.length} de ${cotsMes.length} cotizaciones`}
           delay={0.18}
           loading={loading}
         />
         <MensualKpiCard
           label="Pipeline monetario"
           value={fmtMXNFull(pipeline)}
-          sub="Borrador + Enviadas + Aprobadas"
+          sub="Todas las cotizaciones del mes"
           delay={0.21}
           loading={loading}
         />
@@ -125,7 +130,7 @@ export default function DashboardMensual({ ingresosPorMes, ingresosPorMarca, cot
 
       {/* ── Fila 4: Tabla oportunidades ──────────────── */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-        <OportunidadesTabla cotizaciones={cotizaciones} loading={loading} />
+        <OportunidadesTabla cotizaciones={cotsMes} loading={loading} />
       </motion.div>
     </div>
   );
