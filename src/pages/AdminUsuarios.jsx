@@ -3,7 +3,7 @@ import { Helmet } from 'react-helmet';
 import { Navigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Loader2, Plus, UserCog } from 'lucide-react';
+import { Loader2, Plus, UserCog, TrendingUp } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { usePermissions } from '@/contexts/PermissionsContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -188,6 +188,30 @@ const AdminUsuarios = () => {
         dirty: true,
       },
     }));
+  };
+
+  // Atajo: otorga el área de Ventas completa (4 incisos + lectura para el Dashboard).
+  // Nota: 'proyectos.ver' es necesario para que el Dashboard/Calendario carguen datos;
+  // por override por-usuario esto también abre el módulo Proyectos (solo lectura).
+  const aplicarAreaVentas = () => {
+    const AREA = {
+      clientes: { ver: true, crear: true, editar: true },
+      cotizaciones: { ver: true },
+      prospectos: { ver: true, crear: true, editar: true, eliminar: true },
+      proyectos: { ver: true },
+      'proyectos.control_financiero': { ver: true },
+    };
+    setPermState((prev) => {
+      const next = { ...prev };
+      for (const [key, perms] of Object.entries(AREA)) {
+        next[key] = { ...prev[key], ...perms, dirty: true };
+      }
+      return next;
+    });
+    toast({
+      title: 'Área de Ventas aplicada',
+      description: 'Revisa los módulos y pulsa "Guardar cambios" para confirmar.',
+    });
   };
 
   const toggleCampoOculto = (campoId, checked) => {
@@ -595,6 +619,22 @@ const AdminUsuarios = () => {
               </div>
             )}
           </SheetHeader>
+
+          <div className="px-6 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2 border-green-200 bg-green-50 text-green-800 hover:bg-green-100 hover:text-green-900"
+              onClick={aplicarAreaVentas}
+            >
+              <TrendingUp className="w-4 h-4" />
+              Otorgar área de Ventas completa
+            </Button>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Marca Clientes, Cotizaciones, Prospectos/CRM y la lectura necesaria para el
+              Dashboard de Ventas. Luego pulsa "Guardar cambios".
+            </p>
+          </div>
 
           <ScrollArea className="flex-1 px-6 py-4">
             <div className="space-y-6">
