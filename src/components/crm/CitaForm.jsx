@@ -1,5 +1,5 @@
 // src/components/crm/CitaForm.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -34,10 +34,40 @@ const INITIAL = {
   descripcion: '',
 };
 
-const CitaForm = ({ open, onOpenChange, prospectoId, marcaOrigen, onSave }) => {
+const pad2 = (n) => String(n).padStart(2, '0');
+
+const CitaForm = ({
+  open,
+  onOpenChange,
+  prospectoId,
+  marcaOrigen,
+  cita = null,
+  onSave,
+}) => {
   const { toast } = useToast();
   const [form, setForm] = useState(INITIAL);
   const [isSaving, setIsSaving] = useState(false);
+
+  const isEdit = !!cita;
+
+  useEffect(() => {
+    if (!open) return;
+    if (cita) {
+      const d = new Date(cita.fecha_hora_programada);
+      const fecha = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(
+        d.getDate()
+      )}`;
+      const hora = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+      setForm({
+        tipo: cita.tipo,
+        fecha,
+        hora,
+        descripcion: cita.descripcion ?? '',
+      });
+    } else {
+      setForm(INITIAL);
+    }
+  }, [open, cita]);
 
   const handleChange = (e) => {
     const { id, value } = e.target;
@@ -65,24 +95,74 @@ const CitaForm = ({ open, onOpenChange, prospectoId, marcaOrigen, onSave }) => {
       const descripcionFinal =
         form.descripcion.trim() || `Cita programada: ${tipoLabel}`;
 
-      const { error } = await supabase.from('crm_interacciones').insert([
-        {
-          prospecto_id: prospectoId,
-          marca_origen: marcaOrigen,
-          tipo: form.tipo,
-          descripcion: descripcionFinal,
-          fecha: form.fecha,
-          programada: true,
-          fecha_hora_programada,
-          eliminado: false,
-        },
-      ]);
+      let error;
+      if (isEdit) {
+        ({ error } = await supabase
+          .from('crm_interacciones')
+          .update({
+            tipo: form.tipo,
+            descripcion: descripcionFinal,
+            fecha: form.fecha,
+            fecha_hora_programada,
+          })
+          .eq('id', cita.id));
+      } else {
+        ({ error } = await supabase.from('crm_interacciones').insert([
+          {
+            prospecto_id: prospectoId,
+            marca_origen: marcaOrigen,
+            tipo: form.tipo,
+            descripcion: descripcionFinal,
+            fecha: form.fecha,
+            programada: true,
+            fecha_hora_programada,
+            eliminado: false,
+          },
+        ]));
+      }
       if (error) throw error;
 
       toast({
-        title: 'Cita programada',
-        description: 'La cita fue agendada correctamente.',
+        title: isEdit ? 'Interacción actualizada' : 'Cita programada',
+        description: isEdit
+          ? 'Los cambios fueron guardados correctamente.'
+          : 'La cita fue agendada correctamente.',
       });
+      setForm(INITIAL);
+      onSave();
+      onOpenChange(false);
+    } catch (err) {
+      if (err.code === '23505') {
+        toast({
+          variant: 'destructive',
+          title: 'Ya hay una interacción programada',
+          description:
+            'Este lead ya tiene una interacción programada; complétala o cancélala primero.',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: err.message || 'No se pudo guardar la cita.',
+        });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelCita = async () => {
+    if (!cita) return;
+    if (!window.confirm('¿Cancelar esta interacción?')) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('crm_interacciones')
+        .update({ eliminado: true })
+        .eq('id', cita.id);
+      if (error) throw error;
+
+      toast({ title: 'Interacción cancelada' });
       setForm(INITIAL);
       onSave();
       onOpenChange(false);
@@ -90,7 +170,7 @@ const CitaForm = ({ open, onOpenChange, prospectoId, marcaOrigen, onSave }) => {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: err.message || 'No se pudo guardar la cita.',
+        description: err.message || 'No se pudo cancelar la interacción.',
       });
     } finally {
       setIsSaving(false);
@@ -101,7 +181,7 @@ const CitaForm = ({ open, onOpenChange, prospectoId, marcaOrigen, onSave }) => {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
-          <DialogTitle>Programar cita</DialogTitle>
+          <DialogTitle>{isEdit ? 'Editar interacción' : 'Programar cita'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-4 py-2">
           <div className="grid gap-2">
@@ -157,22 +237,38 @@ const CitaForm = ({ open, onOpenChange, prospectoId, marcaOrigen, onSave }) => {
             />
           </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isSaving}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSaving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              {isSaving ? 'Guardando...' : 'Programar cita'}
-            </Button>
+          <DialogFooter className={isEdit ? 'sm:justify-between' : undefined}>
+            {isEdit && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleCancelCita}
+                disabled={isSaving}
+              >
+                Cancelar cita
+              </Button>
+            )}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isSaving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSaving}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                {isSaving
+                  ? 'Guardando...'
+                  : isEdit
+                  ? 'Guardar cambios'
+                  : 'Programar cita'}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Helmet } from 'react-helmet';
-import { Plus, Loader2, Table2, Kanban } from 'lucide-react';
+import { Plus, Loader2, Table2, Kanban, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import ProspectoKanban from '@/components/crm/ProspectoKanban';
 import ProspectoTabla from '@/components/crm/ProspectoTabla';
 import ProspectoDialog from '@/components/crm/ProspectoDialog';
 import ProspectoDetalle from '@/components/crm/ProspectoDetalle';
+import InteraccionesPanel from '@/components/crm/InteraccionesPanel';
 
 const fmtMXN = (n) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(Number(n) || 0);
@@ -27,7 +28,7 @@ const Prospectos = () => {
   const [prospectoSeleccionado, setProspectoSeleccionado] = useState(null);
   const [clientesNuevosMes, setClientesNuevosMes] = useState(0);
   const [vista, setVista] = useState('tabla');
-  const [ultimaInteraccion, setUltimaInteraccion] = useState({});
+  const [proximaInteraccion, setProximaInteraccion] = useState({});
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -61,24 +62,31 @@ const Prospectos = () => {
     setClientesNuevosMes(count || 0);
   }, []);
 
-  const fetchUltimas = useCallback(async () => {
+  const fetchProximas = useCallback(async () => {
     const { data } = await supabase
       .from('crm_interacciones')
-      .select('prospecto_id, fecha')
+      .select('prospecto_id, fecha_hora_programada, tipo')
+      .eq('programada', true)
       .eq('eliminado', false)
-      .order('fecha', { ascending: false });
+      .not('prospecto_id', 'is', null)
+      .order('fecha_hora_programada', { ascending: true });
     const map = {};
     (data || []).forEach((row) => {
-      if (row.prospecto_id && !map[row.prospecto_id]) map[row.prospecto_id] = row.fecha;
+      if (row.prospecto_id && !map[row.prospecto_id]) {
+        map[row.prospecto_id] = {
+          fecha_hora_programada: row.fecha_hora_programada,
+          tipo: row.tipo,
+        };
+      }
     });
-    setUltimaInteraccion(map);
+    setProximaInteraccion(map);
   }, []);
 
   useEffect(() => {
     refetch();
     fetchClientesNuevos();
-    fetchUltimas();
-  }, [refetch, fetchClientesNuevos, fetchUltimas]);
+    fetchProximas();
+  }, [refetch, fetchClientesNuevos, fetchProximas]);
 
   const activosCount = useMemo(
     () =>
@@ -213,11 +221,20 @@ const Prospectos = () => {
             >
               <Kanban className="w-4 h-4" /> Kanban
             </button>
+            <button
+              type="button"
+              onClick={() => setVista('interacciones')}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${vista === 'interacciones' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+            >
+              <CalendarClock className="w-4 h-4" /> Interacciones
+            </button>
           </div>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 min-h-[320px]">
-          {loading ? (
+          {vista === 'interacciones' ? (
+            <InteraccionesPanel onRefetchProspectos={fetchProximas} />
+          ) : loading ? (
             <div className="flex justify-center items-center h-64">
               <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
             </div>
@@ -236,7 +253,7 @@ const Prospectos = () => {
             <ProspectoTabla
               prospectos={filtrados}
               onCardClick={handleCardClick}
-              ultimaInteraccion={ultimaInteraccion}
+              proximaInteraccion={proximaInteraccion}
             />
           )}
         </div>
