@@ -192,3 +192,45 @@ Dos defectos de BD lo impiden de raíz:
 
 Todo el código nuevo que consulta tablas nuevas se hace **defensivo**: si la tabla no existe aún
 (migración no aplicada), el componente degrada a vacío/silencioso sin romper build ni runtime básico.
+
+---
+
+## 7. Resultado de implementación (lo que SÍ se hizo)
+
+### Migraciones escritas (NO aplicadas) — orden de aplicación
+
+1. `20260604_compras_01_fix_oc_insert.sql` — `generar_folio_oc()` ahora setea `folio` y `folio_oc`;
+   `validar_oc_con_items` pasa a **CONSTRAINT TRIGGER DEFERRED**. Desbloquea el alta de OC.
+2. `20260604_compras_02_cancelacion_no_delete.sql` — políticas `oc_delete`/`oci_delete` → `USING (false)`
+   (borrado físico solo `service_role`). Cancelar = `estatus='Cancelada'`.
+3. `20260604_compras_03_oc_historial.sql` — `ordenes_compra.version` + tabla `ordenes_compra_historial`
+   con RLS por `tiene_permiso('compras', …, 'ordenes')`.
+4. `20260604_compras_04_material_proveedor_alias.sql` — tabla `material_proveedor_alias`
+   UNIQUE(material_id, proveedor_id) + RLS + `updated_at` trigger.
+5. `20260604_compras_05_costos_material.sql` — vista `material_costos_historial` + función
+   `get_costo_material(int)` (alto/promedio/último; solo OC no canceladas; `ordenes_compra.fecha`).
+
+### Front
+
+- `OrdenesCompraTab`: botón **Cancelar** (estatus='Cancelada', gate `compras/editar`) en vez de DELETE.
+- `PedidosMateriales`: `handleCancelPedido` (estatus='Cancelada') en vez de borrado físico.
+- `GenerarOCModal`: sección **Partidas adicionales** libres (no ligadas al pedido) que se insertan con
+  `material_id`/`pedido_item_id` null.
+- `NuevaOCDirectaModal`: captura/edita **alias del material por proveedor** (`material_proveedor_alias`),
+  prellenado al elegir proveedor/material; el item de OC muestra el alias cuando existe. El catálogo
+  `materiales` no cambia.
+- `EditarOCModal` (nuevo) + `OCResumen` (`OC-XXX vN`) + `OCHistorial` (visor) integrados en
+  `DetalleOCModal`: editar OC exige **razón**, incrementa `version` y registra historial.
+- `lib/comprasExtras.js`: acceso defensivo (degrada si faltan tablas nuevas).
+- Limpieza: borrado de `ModalDetalleOC.jsx` (código muerto) e import `format` sin uso.
+
+### No tocado (conservador)
+- RPC `crear_oc_desde_pedido` (rota/muerta): no se borra para no alterar objetos de BD sin pedirlo;
+  el front no la usa. Candidata a `DROP` futuro.
+- `NuevaOCDirectaModal` sigue sin persistir impuestos/parcialidades/proyecto (comportamiento previo;
+  fuera del alcance de Tarea 5).
+- Cancelación de pedidos a nivel BD (RLS) no se fuerza para no romper borrado de borradores.
+
+### Verificación
+- `npm run build`: OK. `npm run lint`: sin errores NUEVOS en archivos tocados (los preexistentes
+  `pedidoInfo`/exhaustive-deps en `DetalleOCModal` ya estaban en `main`).
