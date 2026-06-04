@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Plus, Search, Filter, Copy, CheckCircle, XCircle, MoreVertical, Edit, Trash2, Loader2, ArrowRight, User, Printer, RotateCcw, History, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +55,7 @@ const Cotizaciones = () => {
   const [filterEmpresa, setFilterEmpresa] = useState('Todos');
   const [filterFechaOrden, setFilterFechaOrden] = useState('desc');
   const [cotizaciones, setCotizaciones] = useState([]);
+  const [proyectosPorCotizacion, setProyectosPorCotizacion] = useState({});
   const [loading, setLoading] = useState(true);
   
   // Dialog States
@@ -99,6 +100,51 @@ const Cotizaciones = () => {
     return data;
   }, []);
 
+  /**
+   * Tarea 4: mapea cada cotización con su proyecto (si existe) en una sola pasada.
+   * Empareja por `cotizacion_id` directo y, como respaldo, por familia de folio
+   * (`cotizacion_folio` base), para cotizaciones versionadas (CTZ-050-V2 → CTZ-050).
+   * Devuelve un objeto { [cotizacionId]: { id, folio } }.
+   */
+  const fetchProyectosDeCotizaciones = useCallback(async (cots) => {
+    if (!cots || cots.length === 0) return {};
+    const cotIds = cots.map((c) => c.id);
+    const foliosBase = Array.from(
+      new Set(cots.map((c) => getFolioBase(c.folio)).filter(Boolean))
+    );
+
+    const orClauses = [`cotizacion_id.in.(${cotIds.join(',')})`];
+    if (foliosBase.length > 0) {
+      orClauses.push(`cotizacion_folio.in.(${foliosBase.map((f) => `"${f}"`).join(',')})`);
+    }
+
+    const { data, error } = await supabase
+      .from('proyectos')
+      .select('id, folio, cotizacion_id, cotizacion_folio')
+      .or(orClauses.join(','));
+
+    if (error) {
+      console.error('Error cargando proyectos de cotizaciones:', error);
+      return {};
+    }
+
+    // Índices para empareje: por cotizacion_id directo y por folio base de la familia.
+    const porCotId = new Map();
+    const porFolioBase = new Map();
+    (data || []).forEach((p) => {
+      if (p.cotizacion_id != null && !porCotId.has(p.cotizacion_id)) porCotId.set(p.cotizacion_id, p);
+      const base = getFolioBase(p.cotizacion_folio);
+      if (base && !porFolioBase.has(base)) porFolioBase.set(base, p);
+    });
+
+    const mapa = {};
+    cots.forEach((c) => {
+      const match = porCotId.get(c.id) || porFolioBase.get(getFolioBase(c.folio));
+      if (match) mapa[c.id] = { id: match.id, folio: match.folio };
+    });
+    return mapa;
+  }, []);
+
   const fetchCotizaciones = useCallback(async () => {
     setLoading(true);
     let query = supabase
@@ -120,9 +166,11 @@ const Cotizaciones = () => {
             cliente_nombre: c.cliente?.nombre || c.cliente_nombre_externo,
         }));
         setCotizaciones(formattedData);
+        const mapaProyectos = await fetchProyectosDeCotizaciones(formattedData);
+        setProyectosPorCotizacion(mapaProyectos);
     }
     setLoading(false);
-  }, [toast, filterStatus]);
+  }, [toast, filterStatus, fetchProyectosDeCotizaciones]);
 
   const autoRechazarAntiguas = useCallback(async () => {
     const now = new Date();
@@ -203,6 +251,11 @@ const Cotizaciones = () => {
    */
   const handleCreateOrUpdateProjectFromQuote = async (cotizacionAprobada, options = {}) => {
     const { isUpdate, existingProjectId, existingProject } = options;
+    // Tarea 3: guardia dura. Nunca crear/actualizar un proyecto sin cliente real.
+    if (cotizacionAprobada?.cliente_id == null) {
+      toast({ variant: 'destructive', title: 'Cliente requerido', description: 'No se puede generar el proyecto sin un cliente real.' });
+      return null;
+    }
     const payload = buildProjectPayloadFromQuote(cotizacionAprobada);
 
     if (isUpdate && existingProjectId != null) {
@@ -260,16 +313,21 @@ const Cotizaciones = () => {
   };
 
   const handleStatusChange = async (id, estatus) => {
+    // Tarea 3: la aprobación SIEMPRE pasa por ApproveQuoteModal (resuelve cliente y crea proyecto
+    // con la guardia de cliente real). Evitamos un atajo que apruebe/genere proyecto sin cliente.
+    if (estatus === 'Aprobada') {
+      const cotizacion = cotizaciones.find(c => c.id === id);
+      if (cotizacion) {
+        setQuoteToApprove(cotizacion);
+        setApproveQuoteModalOpen(true);
+      }
+      return;
+    }
     const { error } = await supabase.from('cotizaciones').update({ estatus }).eq('id', id);
     if (error) {
       toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar el estatus.' });
     } else {
       toast({ title: `✅ Estatus Actualizado`, description: `La cotización ahora está ${estatus}.` });
-      if (estatus === 'Aprobada') {
-        const cotizacionAprobada = cotizaciones.find(c => c.id === id);
-        const nuevoProyecto = await handleCreateProjectFromQuote(cotizacionAprobada);
-        if (nuevoProyecto) await notifyAndToastProjectCreated(cotizacionAprobada, nuevoProyecto);
-      }
       await fetchCotizaciones();
     }
   };
@@ -295,6 +353,11 @@ const Cotizaciones = () => {
 
   const handleConfirmApproval = async ({ cotizacionResuelta, isDirty }) => {
     const id = cotizacionResuelta.id;
+    // Tarea 3: guardia en capa de datos. No se aprueba ni se crea proyecto sin cliente real.
+    if (cotizacionResuelta.cliente_id == null) {
+      toast({ variant: 'destructive', title: 'Cliente requerido', description: 'Asigna un cliente real antes de aprobar la cotización.' });
+      throw new Error('Aprobación bloqueada: cotización sin cliente_id');
+    }
     if (isDirty) {
       const { error: updateErr } = await supabase.from('cotizaciones').update({
         cliente_id: cotizacionResuelta.cliente_id,
@@ -562,6 +625,7 @@ const Cotizaciones = () => {
                         <thead className="bg-gray-50 border-b border-gray-200">
                             <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proyecto</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               <div className="flex items-center gap-1">
                                 <span>Marca / Empresa</span>
@@ -651,6 +715,18 @@ const Cotizaciones = () => {
                                     <p className="font-mono text-sm text-blue-600">{c.folio}</p>
                                     {c.cotizacion_control && <p className="text-xs text-gray-500 font-mono">Control: {c.cotizacion_control}</p>}
                                 </td>
+                                <td className="px-6 py-4">
+                                    {proyectosPorCotizacion[c.id] ? (
+                                        <Link
+                                            to={`${proyectosBase}/${proyectosPorCotizacion[c.id].id}`}
+                                            className="font-mono text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                        >
+                                            {proyectosPorCotizacion[c.id].folio}
+                                        </Link>
+                                    ) : (
+                                        <span className="text-sm text-gray-400">—</span>
+                                    )}
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <p className="font-semibold text-sm text-gray-900">
                                     {(MARCAS_COMERCIALES.find(m => m.id === c.marca_comercial)?.nombre ?? c.marca_comercial ?? '—').toUpperCase()}
@@ -724,7 +800,7 @@ const Cotizaciones = () => {
                             </motion.tr>
                             )) : (
                                 <tr>
-                                    <td colSpan="7" className="text-center py-16 text-gray-500">
+                                    <td colSpan="8" className="text-center py-16 text-gray-500">
                                         <h3 className="text-lg font-medium">No hay cotizaciones aún</h3>
                                         <p className="text-sm mt-1">Crea tu primera cotización para empezar.</p>
                                     </td>
