@@ -71,6 +71,8 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
   const [retencionIsr, setRetencionIsr] = useState('');
   const [pedidoItems, setPedidoItems] = useState([]);
   const [selection, setSelection] = useState({}); // itemId -> { selected, cantidadSolicitar, precio_unitario }
+  // Partidas EXTRA libres (no ligadas al pedido): material_id/pedido_item_id null.
+  const [extraItems, setExtraItems] = useState([]); // [{ id, descripcion, unidad, cantidad, precio_unitario }]
 
   const loadProveedores = useCallback(async () => {
     setLoadingProveedores(true);
@@ -199,6 +201,7 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
       setIeps('');
       setRetencionIva('');
       setRetencionIsr('');
+      setExtraItems([]);
       if (pedidoId) {
         fetchItemsAndPedido();
       } else {
@@ -303,11 +306,32 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
     };
   };
 
+  const addExtraItem = () =>
+    setExtraItems((prev) => [
+      ...prev,
+      { id: `extra-${Date.now()}-${prev.length}`, descripcion: '', unidad: '', cantidad: '', precio_unitario: '' },
+    ]);
+  const removeExtraItem = (id) => setExtraItems((prev) => prev.filter((e) => e.id !== id));
+  const updateExtraItem = (id, field, value) =>
+    setExtraItems((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: value } : e)));
+
+  // Extras válidas: con descripción, cantidad > 0 y precio >= 0.
+  const validExtraItems = extraItems.filter(
+    (e) => (e.descripcion ?? '').trim() && Number(e.cantidad) > 0 && Number(e.precio_unitario) >= 0
+  );
+
   const selectedItems = pedidoItems.filter((i) => getItemSelection(i.id).selected);
-  const subtotal = selectedItems.reduce((sum, i) => {
+  const subtotalPedido = selectedItems.reduce((sum, i) => {
     const { cantidadSolicitar, precio_unitario } = getItemSelection(i.id);
     return sum + (Number(cantidadSolicitar) || 0) * (Number(precio_unitario) || 0);
   }, 0);
+  const subtotalExtras = validExtraItems.reduce(
+    (sum, e) => sum + (Number(e.cantidad) || 0) * (Number(e.precio_unitario) || 0),
+    0
+  );
+  const subtotal = subtotalPedido + subtotalExtras;
+  // ¿Hay al menos una partida (del pedido o extra) para poder guardar?
+  const hayPartidas = selectedItems.length > 0 || validExtraItems.length > 0;
   const tasaIvaNum = tasaIva === 'exento' ? 0 : (parseFloat(tasaIva) || 0);
   const iva = subtotal * (tasaIvaNum / 100);
   const iepsNum = parseFloat(String(ieps).replace(',', '.')) || 0;
@@ -338,8 +362,8 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
       toast({ variant: 'destructive', title: 'Error', description: 'Selecciona un solicitante.' });
       return;
     }
-    if (selectedItems.length === 0) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Selecciona al menos una partida.' });
+    if (!hayPartidas) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Selecciona al menos una partida del pedido o agrega una partida extra.' });
       return;
     }
     const sinCantidad = selectedItems.find((i) => {
@@ -388,7 +412,7 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
       const folioMostrado = createdRow?.folio ?? createdRow?.folio_oc ?? '';
       const ordenCompraId = inserted.id;
 
-      const ociRows = selectedItems.map((item) => {
+      const ociRowsPedido = selectedItems.map((item) => {
         const { cantidadSolicitar, precio_unitario } = getItemSelection(item.id);
         const qty = Number(cantidadSolicitar) || 0;
         const pu = Number(precio_unitario) || 0;
@@ -405,6 +429,23 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
         if (pedidoId) row.pedido_item_id = item.id;
         return row;
       });
+
+      // Partidas EXTRA libres: no ligadas al pedido (material_id/pedido_item_id null).
+      const ociRowsExtra = validExtraItems.map((e) => {
+        const qty = Number(e.cantidad) || 0;
+        const pu = Number(e.precio_unitario) || 0;
+        return {
+          orden_compra_id: ordenCompraId,
+          descripcion: (e.descripcion ?? '').toString().trim() || '—',
+          cantidad: qty,
+          unidad: (e.unidad ?? 'N/A').toString().trim() || 'N/A',
+          precio_unitario: pu,
+          importe: qty * pu,
+          material_id: null,
+        };
+      });
+
+      const ociRows = [...ociRowsPedido, ...ociRowsExtra];
 
       if (ociRows.length === 0) {
         await supabase.from('ordenes_compra').delete().eq('id', ordenCompraId);
@@ -475,8 +516,8 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
       toast({ variant: 'destructive', title: 'Falta información', description: 'Selecciona un proveedor para previsualizar.' });
       return;
     }
-    if (selectedItems.length === 0) {
-      toast({ variant: 'destructive', title: 'Falta información', description: 'Selecciona al menos una partida para previsualizar.' });
+    if (!hayPartidas) {
+      toast({ variant: 'destructive', title: 'Falta información', description: 'Selecciona al menos una partida (del pedido o extra) para previsualizar.' });
       return;
     }
     setShowPreview(true);
@@ -647,6 +688,85 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
                 </table>
               </div>
             )}
+            {/* Partidas EXTRA libres (no ligadas al pedido) */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between">
+                <Label>Partidas adicionales (no ligadas al pedido)</Label>
+                <Button type="button" size="sm" variant="outline" onClick={addExtraItem} className="gap-1">
+                  <PlusCircle className="w-4 h-4" /> Agregar partida
+                </Button>
+              </div>
+              {extraItems.length > 0 && (
+                <div className="border rounded-lg overflow-x-auto mt-2">
+                  <table className="w-full text-sm min-w-[640px]">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="text-left px-2 py-2 font-medium">Descripción</th>
+                        <th className="text-center px-2 py-2 font-medium w-20">Unidad</th>
+                        <th className="text-right px-2 py-2 font-medium w-24">Cantidad</th>
+                        <th className="text-right px-2 py-2 font-medium w-28">Precio unit.</th>
+                        <th className="text-right px-2 py-2 font-medium w-24">Importe</th>
+                        <th className="w-10 px-2 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {extraItems.map((e) => {
+                        const importe = (Number(e.cantidad) || 0) * (Number(e.precio_unitario) || 0);
+                        return (
+                          <tr key={e.id} className="hover:bg-gray-50">
+                            <td className="px-2 py-2">
+                              <Input
+                                value={e.descripcion}
+                                onChange={(ev) => updateExtraItem(e.id, 'descripcion', ev.target.value)}
+                                placeholder="Descripción libre"
+                                className="h-8"
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <Input
+                                value={e.unidad}
+                                onChange={(ev) => updateExtraItem(e.id, 'unidad', ev.target.value)}
+                                placeholder="PZA"
+                                className="h-8 w-20 text-center"
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                step="any"
+                                value={e.cantidad}
+                                onChange={(ev) => updateExtraItem(e.id, 'cantidad', ev.target.value)}
+                                className="h-8 w-20 text-right"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={e.precio_unitario}
+                                onChange={(ev) => updateExtraItem(e.id, 'precio_unitario', ev.target.value)}
+                                className="h-8 w-24 text-right"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="px-2 py-2 text-right font-medium">{formatCurrency(importe)}</td>
+                            <td className="px-2 py-2 text-center">
+                              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-600" onClick={() => removeExtraItem(e.id)}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
             <div className="mt-2">
               <Label>Observaciones</Label>
               <Textarea value={observaciones} onChange={(e) => setObservaciones(e.target.value)} placeholder="Opcional" rows={2} className="mt-1" />
@@ -702,7 +822,7 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
             )}
           </div>
 
-          {selectedItems.length > 0 && (
+          {hayPartidas && (
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-2">
               <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2">
                 <span>Subtotal: <strong>{formatCurrency(subtotal)}</strong></span>
@@ -766,7 +886,7 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
             onClick={handleConfirm}
             disabled={
               saving ||
-              selectedItems.length === 0 ||
+              !hayPartidas ||
               !ocForm.empresa_id ||
               !ocForm.proveedor_id ||
               !solicitanteId ||
@@ -820,6 +940,18 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
                 return (
                   <tr key={`${item.id}-preview`}>
                     <td className="border border-gray-300 p-2">{item.descripcion}</td>
+                    <td className="border border-gray-300 p-2 text-right">{qty}</td>
+                    <td className="border border-gray-300 p-2 text-right">{formatCurrency(pu)}</td>
+                    <td className="border border-gray-300 p-2 text-right">{formatCurrency(qty * pu)}</td>
+                  </tr>
+                );
+              })}
+              {validExtraItems.map((e) => {
+                const qty = Number(e.cantidad) || 0;
+                const pu = Number(e.precio_unitario) || 0;
+                return (
+                  <tr key={`${e.id}-preview`}>
+                    <td className="border border-gray-300 p-2">{e.descripcion}</td>
                     <td className="border border-gray-300 p-2 text-right">{qty}</td>
                     <td className="border border-gray-300 p-2 text-right">{formatCurrency(pu)}</td>
                     <td className="border border-gray-300 p-2 text-right">{formatCurrency(qty * pu)}</td>
