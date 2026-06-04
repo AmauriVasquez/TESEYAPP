@@ -2,11 +2,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet';
 import { Button } from '@/components/ui/button';
-import { Eye, PlusCircle, Loader2, Trash2, Copy } from 'lucide-react';
+import { Eye, PlusCircle, Loader2, Ban, Copy } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
 import { fetchPedidosMaterialesListCompat, fetchPedidoMaterialesByIdCompat } from '@/lib/supabasePedidosCompat';
-import { format } from 'date-fns';
 import { formatDateTable } from '@/lib/dateUtils';
 import NuevoPedidoDialog from '@/components/pedidos/NuevoPedidoDialog';
 import EstatusPedidoBadge from '@/components/pedidos/EstatusPedidoBadge';
@@ -183,19 +182,17 @@ const PedidosMateriales = ({ isEmbedded = false }) => {
     return handleCreatePedido(formData);
   }, [pedidoGuardado?.id, handleUpdatePedido, handleCreatePedido]);
 
-  const handleDeletePedido = useCallback(async (id) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este pedido? Esta acción no se puede deshacer.')) return;
+  const handleCancelPedido = useCallback(async (id) => {
+    if (!window.confirm('¿Cancelar este pedido? Se marcará como Cancelado (no se elimina; queda en el histórico).')) return;
     try {
-      const { error: itemsError } = await supabase.from('pedidos_materiales_items').delete().eq('pedido_id', id);
-      if (itemsError) throw itemsError;
-      const { error } = await supabase.from('pedidos_materiales').delete().eq('id', id);
+      const { error } = await supabase.from('pedidos_materiales').update({ estatus: 'Cancelada' }).eq('id', id);
       if (error) throw error;
-      toast({ title: 'Pedido eliminado', description: 'El pedido ha sido eliminado correctamente.' });
+      toast({ title: 'Pedido cancelado', description: 'El pedido fue marcado como Cancelado.' });
       if (pedidoGuardado?.id === id) setPedidoGuardado(null);
       fetchPedidos();
     } catch (error) {
-      console.error('Error en handleDeletePedido:', error);
-      toast({ variant: 'destructive', title: 'Error', description: error?.message ?? 'No se pudo eliminar el pedido.' });
+      console.error('Error en handleCancelPedido:', error);
+      toast({ variant: 'destructive', title: 'Error', description: error?.message ?? 'No se pudo cancelar el pedido.' });
     }
   }, [toast, fetchPedidos, pedidoGuardado?.id]);
 
@@ -349,8 +346,15 @@ const PedidosMateriales = ({ isEmbedded = false }) => {
                                   <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8" title="Pedir de nuevo" onClick={() => handleDuplicateOrder(pedido)}>
                                     <Copy className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeletePedido(pedido.id)} title="Eliminar">
-                                    <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 md:h-8 md:w-8 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-40"
+                                    onClick={() => handleCancelPedido(pedido.id)}
+                                    disabled={(pedido?.estatus ?? '').toLowerCase().includes('cancel')}
+                                    title={(pedido?.estatus ?? '').toLowerCase().includes('cancel') ? 'Pedido cancelado' : 'Cancelar pedido'}
+                                  >
+                                    <Ban className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                   </Button>
                                 </div>
                               </td>

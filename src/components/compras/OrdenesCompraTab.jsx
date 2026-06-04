@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
 import { formatDateTable } from '@/lib/dateUtils';
-import { Loader2, Eye, Printer, Trash2, PlusCircle } from 'lucide-react';
+import { Loader2, Eye, Printer, Ban, PlusCircle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,7 +39,7 @@ const OrdenesCompraTab = () => {
   const { toast } = useToast();
   const [ordenes, setOrdenes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [deleteId, setDeleteId] = useState(null);
+  const [cancelId, setCancelId] = useState(null);
   const [printOC, setPrintOC] = useState(null);
   const [printData, setPrintData] = useState(null);
   const [nuevaOCDirectaOpen, setNuevaOCDirectaOpen] = useState(false);
@@ -87,16 +87,16 @@ const OrdenesCompraTab = () => {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleCancel = async (id) => {
     try {
-      const { error } = await supabase.from('ordenes_compra').delete().eq('id', id);
+      const { error } = await supabase.from('ordenes_compra').update({ estatus: 'Cancelada' }).eq('id', id);
       if (error) throw error;
-      toast({ title: 'OC eliminada', description: 'La orden de compra fue eliminada.' });
-      setDeleteId(null);
+      toast({ title: 'OC cancelada', description: 'La orden de compra fue marcada como Cancelada.' });
+      setCancelId(null);
       fetchOrdenes();
     } catch (err) {
       console.error(err);
-      toast({ variant: 'destructive', title: 'Error', description: err?.message ?? 'No se pudo eliminar.' });
+      toast({ variant: 'destructive', title: 'Error', description: err?.message ?? 'No se pudo cancelar.' });
     }
   };
 
@@ -293,9 +293,16 @@ const OrdenesCompraTab = () => {
                               <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8 text-gray-500 hover:text-gray-700" title="Imprimir" onClick={() => handlePrintClick(oc)}>
                                 <Printer className="w-3.5 h-3.5 md:w-4 md:h-4" />
                               </Button>
-                              <PermissionGate modulo="compras" accion="eliminar" submodulo="ordenes">
-                                <Button variant="ghost" size="icon" className="h-7 w-7 md:h-8 md:w-8 text-gray-500 hover:text-red-600" title="Eliminar" onClick={() => setDeleteId(oc.id)}>
-                                  <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                              <PermissionGate modulo="compras" accion="editar" submodulo="ordenes">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 md:h-8 md:w-8 text-gray-500 hover:text-red-600 disabled:opacity-40"
+                                  title={oc.estatus === 'Cancelada' ? 'OC cancelada' : 'Cancelar OC'}
+                                  disabled={oc.estatus === 'Cancelada'}
+                                  onClick={() => setCancelId(oc.id)}
+                                >
+                                  <Ban className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                 </Button>
                               </PermissionGate>
                             </div>
@@ -311,16 +318,19 @@ const OrdenesCompraTab = () => {
         </>
       )}
 
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+      <AlertDialog open={!!cancelId} onOpenChange={(open) => !open && setCancelId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar orden de compra?</AlertDialogTitle>
-            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+            <AlertDialogTitle>¿Cancelar orden de compra?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La OC se marcará como <strong>Cancelada</strong> y dejará de contar en los pendientes.
+              No se elimina: queda en el histórico para trazabilidad.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteId && handleDelete(deleteId)} className="bg-red-600 hover:bg-red-700">
-              Eliminar
+            <AlertDialogCancel>Volver</AlertDialogCancel>
+            <AlertDialogAction onClick={() => cancelId && handleCancel(cancelId)} className="bg-red-600 hover:bg-red-700">
+              Cancelar OC
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

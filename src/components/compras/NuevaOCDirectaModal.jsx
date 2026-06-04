@@ -10,6 +10,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { fetchAliasPorProveedor, upsertAlias } from '@/lib/comprasExtras';
 import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
 
 const TASA_IVA_OPTS = [
@@ -35,6 +36,7 @@ const emptyConcepto = () => ({
   unidad: '',
   cantidad: '',
   precio_unitario: '',
+  alias_proveedor: '', // nombre que el proveedor da a este material (se guarda en material_proveedor_alias)
 });
 const emptyParcialidad = () => ({ id: Date.now(), concepto: '', porcentaje: 0, fechaPago: '' });
 
@@ -75,6 +77,7 @@ const NuevaOCDirectaModal = ({ open, onOpenChange, onSuccess, partidasPreselecci
   const [proyectoId, setProyectoId] = useState('');
   const [proyectoTexto, setProyectoTexto] = useState('');
   const [catalogoMateriales, setCatalogoMateriales] = useState([]);
+  const [aliasProveedor, setAliasProveedor] = useState(() => new Map()); // material_id(str) -> {nombre_proveedor, clave_proveedor}
   const [conceptos, setConceptos] = useState([emptyConcepto()]);
   const [observaciones, setObservaciones] = useState('');
   const [formaPago, setFormaPago] = useState('CONTADO');
@@ -182,6 +185,32 @@ const NuevaOCDirectaModal = ({ open, onOpenChange, onSuccess, partidasPreselecci
     return () => { cancelled = true; };
   }, []);
 
+  // Cargar alias del proveedor seleccionado y prellenar filas con material.
+  useEffect(() => {
+    if (!open || !ocForm.proveedor_id) {
+      setAliasProveedor(new Map());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const map = await fetchAliasPorProveedor(ocForm.proveedor_id);
+      if (cancelled) return;
+      setAliasProveedor(map);
+      // Prellenar alias en filas que ya tienen material (sin pisar lo tecleado).
+      setConceptos((prev) =>
+        prev.map((c) => {
+          if (c.material_id == null) return c;
+          const a = map.get(String(c.material_id));
+          if (a && !((c.alias_proveedor ?? '').trim())) {
+            return { ...c, alias_proveedor: a.nombre_proveedor ?? '' };
+          }
+          return c;
+        })
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [open, ocForm.proveedor_id]);
+
   // Inicialización solo al abrir el modal. Dependemos solo de `open` para evitar bucle
   // (partidasPreseleccionadas/datosPedido con referencias nuevas cada render crashean con #185).
   useEffect(() => {
@@ -267,9 +296,10 @@ const NuevaOCDirectaModal = ({ open, onOpenChange, onSuccess, partidasPreselecci
 
   const setConceptoMaterial = (index, material) => {
     if (!material) {
-      setConceptos((prev) => prev.map((c, i) => (i === index ? { ...c, material_id: null } : c)));
+      setConceptos((prev) => prev.map((c, i) => (i === index ? { ...c, material_id: null, alias_proveedor: '' } : c)));
       return;
     }
+    const alias = aliasProveedor.get(String(material.id));
     setConceptos((prev) =>
       prev.map((c, i) =>
         i === index
@@ -279,6 +309,7 @@ const NuevaOCDirectaModal = ({ open, onOpenChange, onSuccess, partidasPreselecci
               clave: material.clave ?? '',
               descripcion: material.descripcion ?? '',
               unidad: material.unidad_compra ?? 'SERVICIO',
+              alias_proveedor: alias?.nombre_proveedor ?? '',
             }
           : c
       )
@@ -358,29 +389,18 @@ const NuevaOCDirectaModal = ({ open, onOpenChange, onSuccess, partidasPreselecci
         comprador: (ocForm.comprador || '').trim(),
         descripcion: (ocForm.descripcion || '').trim(),
       };
-      const { data: inserted, error: insertError } = await supabase
-        .from('ordenes_compra')
-        .insert(insertBody)
-        .select('id')
-        .single();
-      if (insertError) throw insertError;
-
-      const { data: createdRow, error: refreshError } = await supabase
-        .from('ordenes_compra')
-        .select('folio, folio_oc')
-        .eq('id', inserted.id)
-        .single();
-      if (refreshError) throw refreshError;
-      const folioMostrado = createdRow?.folio ?? createdRow?.folio_oc ?? '';
 
       const rows = validConceptos.map((c) => {
         const qty = Number(c.cantidad) || 0;
         const pu = Number(c.precio_unitario) || 0;
+        const alias = (c.alias_proveedor ?? '').trim();
+        // Si hay alias del proveedor para un material del catálogo, se muestra como
+        // descripción del item de OC (el item sigue referenciando material_id).
+        const descripcion = (c.material_id != null && alias) ? alias : (c.descripcion ?? '').trim();
         return {
-          orden_compra_id: inserted.id,
           material_id: c.material_id ?? null,
           clave: (c.clave ?? '').trim() || null,
-          descripcion: (c.descripcion ?? '').trim(),
+          descripcion,
           notas: (c.notas ?? '').trim() || null,
           unidad: (c.unidad ?? 'SERVICIO').trim() || 'SERVICIO',
           cantidad: qty,
@@ -389,31 +409,36 @@ const NuevaOCDirectaModal = ({ open, onOpenChange, onSuccess, partidasPreselecci
           pedido_item_id: null,
         };
       });
-      let toInsert = rows;
-      let itemsRes = await supabase.from('ordenes_compra_items').insert(toInsert);
-      while (itemsRes.error) {
-        const msg = String(itemsRes.error?.message ?? '').toLowerCase();
-        if (msg.includes('importe')) {
-          toInsert = toInsert.map((row) => {
-            const copy = { ...row };
-            delete copy.importe;
-            return copy;
-          });
-        } else if (msg.includes('pedido_item')) {
-          toInsert = toInsert.map((row) => {
-            const copy = { ...row };
-            delete copy.pedido_item_id;
-            return copy;
-          });
-        } else break;
-        itemsRes = await supabase.from('ordenes_compra_items').insert(toInsert);
-      }
-      if (itemsRes.error) {
-        await supabase.from('ordenes_compra').delete().eq('id', inserted.id);
-        throw itemsRes.error;
+
+      // Creación atómica: header + conceptos en UNA transacción (sin OC huérfanas).
+      const { data: nuevaOC, error: rpcError } = await supabase.rpc('crear_orden_compra', {
+        p_oc: insertBody,
+        p_items: rows,
+      });
+      if (rpcError) throw rpcError;
+      const ocRow = Array.isArray(nuevaOC) ? nuevaOC[0] : nuevaOC;
+      const folioMostrado = ocRow?.folio ?? ocRow?.folio_oc ?? '';
+
+      // Guardar/actualizar alias por proveedor (no bloqueante: degrada si falta la tabla).
+      try {
+        const aliasRows = validConceptos.filter(
+          (c) => c.material_id != null && (c.alias_proveedor ?? '').trim()
+        );
+        await Promise.all(
+          aliasRows.map((c) =>
+            upsertAlias({
+              materialId: c.material_id,
+              proveedorId: ocForm.proveedor_id,
+              nombreProveedor: c.alias_proveedor,
+              claveProveedor: c.clave,
+            })
+          )
+        );
+      } catch (aliasErr) {
+        console.error('No se pudieron guardar algunos alias de proveedor:', aliasErr);
       }
 
-      toast({ title: 'OC Directa creada', description: `Folio: ${folioMostrado || '—'}. ${toInsert.length} concepto(s).` });
+      toast({ title: 'OC Directa creada', description: `Folio: ${folioMostrado || '—'}. ${rows.length} concepto(s).` });
       window.setTimeout(() => {
         onOpenChange(false);
         onSuccess?.();
@@ -631,6 +656,16 @@ const NuevaOCDirectaModal = ({ open, onOpenChange, onSuccess, partidasPreselecci
                               placeholder="Notas de partida (ej. color, marca pref.)"
                               className="text-xs px-2 py-1.5 rounded bg-gray-100/80 border-0 focus:ring-1 focus:ring-gray-300 w-full min-w-0 placeholder:text-gray-400"
                             />
+                            {c.material_id != null && (
+                              <input
+                                type="text"
+                                value={c.alias_proveedor ?? ''}
+                                onChange={(e) => updateConcepto(idx, 'alias_proveedor', e.target.value)}
+                                placeholder="Nombre del proveedor para este material (alias)"
+                                title="Se guarda como alias por proveedor; el catálogo de materiales no cambia."
+                                className="text-xs px-2 py-1.5 rounded bg-blue-50 border border-blue-100 focus:ring-1 focus:ring-blue-300 w-full min-w-0 placeholder:text-blue-300"
+                              />
+                            )}
                           </div>
                         </td>
                         <td className="px-2 py-2 align-middle w-[10%] min-w-[100px] shrink-0">

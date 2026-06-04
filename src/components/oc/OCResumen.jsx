@@ -33,7 +33,9 @@ const ENTREGA_BADGE_CLASS = {
 export default function OCResumen({ oc, montoTotalCalculado, estatusOverride }) {
   if (!oc) return null;
 
-  const folio = oc.folio_oc ?? oc.folio ?? '—';
+  const folioBase = oc.folio_oc ?? oc.folio ?? '—';
+  const version = Number(oc.version) || 1;
+  const folio = version > 1 ? `${folioBase} v${version}` : folioBase;
   const proveedorNombre = oc.proveedores?.nombre_comercial ?? oc.proveedor ?? '—';
   const monto = oc.monto_total != null && !Number.isNaN(Number(oc.monto_total))
     ? Number(oc.monto_total)
