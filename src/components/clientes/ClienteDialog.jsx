@@ -148,9 +148,9 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
       const dataToSave = {
         nombre: formData.nombre,
         nombre_contacto: formData.nombre_contacto,
-        rfc: formData.rfc,
+        rfc: formData.rfc?.trim() || null,
         telefono: formData.telefono,
-        email: formData.email,
+        email: formData.email?.trim() || null,
         direccion: formData.direccion,
         observaciones: formData.observaciones,
         marca_origen: formData.marca_origen || null,
@@ -181,10 +181,14 @@ const ClienteDialog = ({ open, onOpenChange, onSave, clienteToEdit }) => {
       onOpenChange(false);
     } catch (error) {
       console.error('Error:', error);
+      const esCorreoDuplicado =
+        error?.code === '23505' && String(error?.message || '').includes('clientes_email_key');
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "No se pudo guardar el cliente. Verifica los datos."
+        title: esCorreoDuplicado ? "Correo ya registrado" : "Error",
+        description: esCorreoDuplicado
+          ? "Ya existe un cliente con ese correo electrónico. Usa otro correo o marca \"No aplica\"."
+          : "No se pudo guardar el cliente. Verifica los datos.",
       });
     } finally {
       setLoading(false);

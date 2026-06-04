@@ -27,3 +27,6 @@ server/.env
 *.njsproj
 *.sln
 *.sw?
+
+# Superpowers / local worktrees
+.claude/worktrees/
