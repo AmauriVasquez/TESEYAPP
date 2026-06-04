@@ -50,12 +50,15 @@ const INITIAL_FORM = {
   observaciones: '',
 };
 
+// Nota: 'convertido' NO es seleccionable manualmente. La conversión solo ocurre
+// vía la RPC crm_convertir_prospecto (botón "Convertir a cliente"), que crea el
+// cliente y enlaza cliente_id. Permitir marcar 'convertido' a mano dejaba
+// prospectos convertidos sin cliente (cliente_id NULL).
 const ETAPAS = [
   { value: 'nuevo', label: 'Nuevo' },
   { value: 'contactado', label: 'Contactado' },
   { value: 'propuesta_enviada', label: 'Propuesta enviada' },
   { value: 'en_negociacion', label: 'En negociación' },
-  { value: 'convertido', label: 'Convertido' },
   { value: 'descartado', label: 'Descartado' },
 ];
 

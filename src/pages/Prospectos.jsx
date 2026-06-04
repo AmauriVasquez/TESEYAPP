@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Helmet } from 'react-helmet';
-import { Plus, Loader2, Table2, Kanban, CalendarClock } from 'lucide-react';
+import { Plus, Loader2, Table2, Kanban, CalendarClock, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,7 @@ const Prospectos = () => {
   const [prospectos, setProspectos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [marcaActiva, setMarcaActiva] = useState('Todas');
+  const [busqueda, setBusqueda] = useState('');
   const [mostrarConvertidos, setMostrarConvertidos] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [prospectoEditar, setProspectoEditar] = useState(null);
@@ -112,14 +113,27 @@ const Prospectos = () => {
   }, [prospectos]);
 
   const filtrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
     return prospectos.filter((p) => {
       const matchMarca =
         marcaActiva === 'Todas' || p.marca_origen === marcaActiva;
       const esCerrado = p.etapa === 'convertido' || p.etapa === 'descartado';
       const matchEstado = mostrarConvertidos || !esCerrado;
-      return matchMarca && matchEstado;
+      const matchBusqueda =
+        q === '' ||
+        [
+          p.nombre,
+          p.nombre_contacto,
+          p.razon_social,
+          p.email,
+          p.telefono,
+          p.folio,
+          p.industria,
+          p.ciudad,
+        ].some((campo) => campo && String(campo).toLowerCase().includes(q));
+      return matchMarca && matchEstado && matchBusqueda;
     });
-  }, [prospectos, marcaActiva, mostrarConvertidos]);
+  }, [prospectos, marcaActiva, mostrarConvertidos, busqueda]);
 
   const handleCardClick = (p) => {
     setProspectoSeleccionado(p);
@@ -167,6 +181,17 @@ const Prospectos = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-wrap">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar nombre, contacto, email, folio..."
+              className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
           <div className="flex flex-wrap gap-2">
             <button
               type="button"

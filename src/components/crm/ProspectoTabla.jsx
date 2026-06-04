@@ -1,4 +1,6 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ExternalLink } from 'lucide-react';
 
 const ETAPA_PILL = {
   nuevo: { label: 'Nuevo', cls: 'bg-orange-400 text-white' },
@@ -58,6 +60,9 @@ const COLUMNS = [
 ];
 
 const ProspectoTabla = ({ prospectos, onCardClick, proximaInteraccion = {} }) => {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const clientesBase = pathname.startsWith('/ventas') ? '/ventas/clientes' : '/clientes';
   const [hoveredId, setHoveredId] = React.useState(null);
   const [sortKey, setSortKey] = React.useState(null);
   const [sortDir, setSortDir] = React.useState('asc');
@@ -193,7 +198,21 @@ const ProspectoTabla = ({ prospectos, onCardClick, proximaInteraccion = {} }) =>
                     <p className="font-semibold text-gray-900">{p.nombre}</p>
                     {p.nombre_contacto && <p className="text-xs text-gray-500">{p.nombre_contacto}</p>}
                   </td>
-                  <td className="px-3 py-3"><Pill def={ETAPA_PILL[p.etapa]} fallback={p.etapa} /></td>
+                  <td className="px-3 py-3">
+                    <Pill def={ETAPA_PILL[p.etapa]} fallback={p.etapa} />
+                    {p.etapa === 'convertido' && p.cliente_id != null && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`${clientesBase}?cliente=${p.cliente_id}`);
+                        }}
+                        className="mt-1 flex items-center gap-1 text-xs text-emerald-700 hover:underline"
+                      >
+                        <ExternalLink className="w-3 h-3" /> Ver cliente
+                      </button>
+                    )}
+                  </td>
                   <td className="px-3 py-3 text-gray-700">{p.razon_social || p.nombre || '—'}</td>
                   <td className="px-3 py-3 text-gray-600">{p.industria || '—'}</td>
                   <td className="px-3 py-3">
