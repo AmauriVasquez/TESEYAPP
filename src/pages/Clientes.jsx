@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
 import { Plus, Search, Mail, Phone, Building, Edit, Trash2, Eye, Loader2 } from 'lucide-react';
@@ -20,6 +21,7 @@ import {
 
 const Clientes = () => {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState(null);
@@ -53,6 +55,21 @@ const Clientes = () => {
         window.removeEventListener('focus', handleFocus);
     };
   }, [fetchClientes]);
+
+  // Soporte de enlace profundo: /clientes?cliente=<id> (p.ej. "Ver cliente" desde
+  // un prospecto convertido) abre la vista previa del cliente y limpia el query param.
+  useEffect(() => {
+    const clienteParam = searchParams.get('cliente');
+    if (!clienteParam || loading || clientes.length === 0) return;
+    const target = clientes.find((c) => String(c.id) === String(clienteParam));
+    if (target) {
+        setClienteToPreview(target);
+        setPreviewOpen(true);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('cliente');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, clientes, loading]);
 
   const handleEdit = (cliente) => {
     setSelectedCliente(cliente);

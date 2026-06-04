@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,7 @@ import {
   CalendarDays,
   CheckCircle2,
   FilePlus2,
+  ExternalLink,
 } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
@@ -105,6 +107,8 @@ const ResumenField = ({ label, value }) => (
 
 const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [interacciones, setInteracciones] = useState([]);
   const [loadingInteracciones, setLoadingInteracciones] = useState(false);
   const [interaccionFormOpen, setInteraccionFormOpen] = useState(false);
@@ -150,6 +154,15 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
   const marcaClass = MARCA_BADGE[prospecto.marca_origen] || 'bg-gray-100 text-gray-800';
   const etapaClass = ETAPA_BADGE[prospecto.etapa] || 'bg-gray-100 text-gray-800';
   const puedeConvertir = prospecto.etapa !== 'convertido' && prospecto.etapa !== 'descartado';
+  const tieneClienteVinculado = prospecto.etapa === 'convertido' && prospecto.cliente_id != null;
+
+  // Mantiene el árbol de Ventas si el prospecto se abrió desde ahí; si no, ruta clásica.
+  const clientesBase = pathname.startsWith('/ventas') ? '/ventas/clientes' : '/clientes';
+
+  const handleVerCliente = () => {
+    onOpenChange(false);
+    navigate(`${clientesBase}?cliente=${prospecto.cliente_id}`);
+  };
 
   const handleConvertir = async () => {
     setIsConverting(true);
@@ -161,7 +174,8 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
 
       if (error) throw error;
       if (!data?.ok) {
-        throw new Error(data?.mensaje || 'No se pudo convertir el prospecto.');
+        // La RPC retorna { ok:false, error:'...' } (no 'mensaje').
+        throw new Error(data?.error || 'No se pudo convertir el prospecto.');
       }
 
       toast({
@@ -226,6 +240,18 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
               >
                 <FilePlus2 className="w-4 h-4" />
                 Generar cotización
+              </Button>
+            )}
+            {tieneClienteVinculado && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-2 gap-2 border-green-300 text-green-700 hover:bg-green-50"
+                onClick={handleVerCliente}
+              >
+                <ExternalLink className="w-4 h-4" />
+                Ver cliente
               </Button>
             )}
           </DialogHeader>
