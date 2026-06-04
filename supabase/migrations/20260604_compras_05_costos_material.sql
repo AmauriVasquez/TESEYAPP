@@ -13,9 +13,8 @@ CREATE OR REPLACE VIEW public.material_costos_historial AS
 WITH base AS (
   SELECT
     oci.material_id,
-    oci.precio_unitario::numeric          AS precio_unitario,
-    COALESCE(oc.fecha, oc.created_at)     AS fecha_efectiva,
-    oc.created_at                         AS created_at
+    oci.precio_unitario::numeric AS precio_unitario,
+    oc.fecha                     AS fecha_efectiva
   FROM public.ordenes_compra_items oci
   JOIN public.ordenes_compra oc
     ON oc.id = oci.orden_compra_id
@@ -30,7 +29,7 @@ ranked AS (
     b.precio_unitario,
     ROW_NUMBER() OVER (
       PARTITION BY b.material_id
-      ORDER BY b.fecha_efectiva DESC NULLS LAST, b.created_at DESC NULLS LAST
+      ORDER BY b.fecha_efectiva DESC NULLS LAST
     ) AS rn
   FROM base b
 ),
@@ -71,7 +70,7 @@ AS $function$
   WITH base AS (
     SELECT
       oci.precio_unitario::numeric AS precio_unitario,
-      COALESCE(oc.fecha, oc.created_at) AS fecha_efectiva
+      oc.fecha AS fecha_efectiva
     FROM public.ordenes_compra_items oci
     JOIN public.ordenes_compra oc ON oc.id = oci.orden_compra_id
     WHERE oci.material_id = p_material_id
