@@ -389,20 +389,6 @@ const NuevaOCDirectaModal = ({ open, onOpenChange, onSuccess, partidasPreselecci
         comprador: (ocForm.comprador || '').trim(),
         descripcion: (ocForm.descripcion || '').trim(),
       };
-      const { data: inserted, error: insertError } = await supabase
-        .from('ordenes_compra')
-        .insert(insertBody)
-        .select('id')
-        .single();
-      if (insertError) throw insertError;
-
-      const { data: createdRow, error: refreshError } = await supabase
-        .from('ordenes_compra')
-        .select('folio, folio_oc')
-        .eq('id', inserted.id)
-        .single();
-      if (refreshError) throw refreshError;
-      const folioMostrado = createdRow?.folio ?? createdRow?.folio_oc ?? '';
 
       const rows = validConceptos.map((c) => {
         const qty = Number(c.cantidad) || 0;
@@ -412,7 +398,6 @@ const NuevaOCDirectaModal = ({ open, onOpenChange, onSuccess, partidasPreselecci
         // descripción del item de OC (el item sigue referenciando material_id).
         const descripcion = (c.material_id != null && alias) ? alias : (c.descripcion ?? '').trim();
         return {
-          orden_compra_id: inserted.id,
           material_id: c.material_id ?? null,
           clave: (c.clave ?? '').trim() || null,
           descripcion,
@@ -424,29 +409,15 @@ const NuevaOCDirectaModal = ({ open, onOpenChange, onSuccess, partidasPreselecci
           pedido_item_id: null,
         };
       });
-      let toInsert = rows;
-      let itemsRes = await supabase.from('ordenes_compra_items').insert(toInsert);
-      while (itemsRes.error) {
-        const msg = String(itemsRes.error?.message ?? '').toLowerCase();
-        if (msg.includes('importe')) {
-          toInsert = toInsert.map((row) => {
-            const copy = { ...row };
-            delete copy.importe;
-            return copy;
-          });
-        } else if (msg.includes('pedido_item')) {
-          toInsert = toInsert.map((row) => {
-            const copy = { ...row };
-            delete copy.pedido_item_id;
-            return copy;
-          });
-        } else break;
-        itemsRes = await supabase.from('ordenes_compra_items').insert(toInsert);
-      }
-      if (itemsRes.error) {
-        await supabase.from('ordenes_compra').delete().eq('id', inserted.id);
-        throw itemsRes.error;
-      }
+
+      // Creación atómica: header + conceptos en UNA transacción (sin OC huérfanas).
+      const { data: nuevaOC, error: rpcError } = await supabase.rpc('crear_orden_compra', {
+        p_oc: insertBody,
+        p_items: rows,
+      });
+      if (rpcError) throw rpcError;
+      const ocRow = Array.isArray(nuevaOC) ? nuevaOC[0] : nuevaOC;
+      const folioMostrado = ocRow?.folio ?? ocRow?.folio_oc ?? '';
 
       // Guardar/actualizar alias por proveedor (no bloqueante: degrada si falta la tabla).
       try {
@@ -467,7 +438,7 @@ const NuevaOCDirectaModal = ({ open, onOpenChange, onSuccess, partidasPreselecci
         console.error('No se pudieron guardar algunos alias de proveedor:', aliasErr);
       }
 
-      toast({ title: 'OC Directa creada', description: `Folio: ${folioMostrado || '—'}. ${toInsert.length} concepto(s).` });
+      toast({ title: 'OC Directa creada', description: `Folio: ${folioMostrado || '—'}. ${rows.length} concepto(s).` });
       window.setTimeout(() => {
         onOpenChange(false);
         onSuccess?.();

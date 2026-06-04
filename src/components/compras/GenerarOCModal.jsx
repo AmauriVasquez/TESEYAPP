@@ -396,36 +396,20 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
         comprador: (ocForm.comprador || '').trim(),
         descripcion: (ocForm.descripcion || '').trim(),
       };
-      const { data: inserted, error: insertError } = await supabase
-        .from('ordenes_compra')
-        .insert(insertBody)
-        .select('id')
-        .single();
-      if (insertError) throw insertError;
-
-      const { data: createdRow, error: refreshError } = await supabase
-        .from('ordenes_compra')
-        .select('folio, folio_oc')
-        .eq('id', inserted.id)
-        .single();
-      if (refreshError) throw refreshError;
-      const folioMostrado = createdRow?.folio ?? createdRow?.folio_oc ?? '';
-      const ordenCompraId = inserted.id;
 
       const ociRowsPedido = selectedItems.map((item) => {
         const { cantidadSolicitar, precio_unitario } = getItemSelection(item.id);
         const qty = Number(cantidadSolicitar) || 0;
         const pu = Number(precio_unitario) || 0;
-        const importe = qty * pu;
         const row = {
-          orden_compra_id: ordenCompraId,
           descripcion: (item.descripcion ?? '').toString().trim() || '—',
           cantidad: qty,
           unidad: (item.unidad ?? 'N/A').toString().trim() || 'N/A',
           precio_unitario: pu,
-          importe,
+          importe: qty * pu,
           material_id: item.material_id ?? null,
         };
+        // Solo si la partida proviene de un pedido: la RPC la enlaza en la misma transacción.
         if (pedidoId) row.pedido_item_id = item.id;
         return row;
       });
@@ -435,7 +419,6 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
         const qty = Number(e.cantidad) || 0;
         const pu = Number(e.precio_unitario) || 0;
         return {
-          orden_compra_id: ordenCompraId,
           descripcion: (e.descripcion ?? '').toString().trim() || '—',
           cantidad: qty,
           unidad: (e.unidad ?? 'N/A').toString().trim() || 'N/A',
@@ -448,51 +431,18 @@ const GenerarOCModal = ({ open, onOpenChange, pedidoId, items: itemsProp = [], p
       const ociRows = [...ociRowsPedido, ...ociRowsExtra];
 
       if (ociRows.length === 0) {
-        await supabase.from('ordenes_compra').delete().eq('id', ordenCompraId);
         toast({ variant: 'destructive', title: 'Error', description: 'No se puede crear una orden de compra sin partidas.' });
         return;
       }
 
-      let toInsert = ociRows;
-      let ociInsert = await supabase.from('ordenes_compra_items').insert(toInsert);
-      while (ociInsert.error) {
-        const ociMsg = String(ociInsert.error?.message ?? '').toLowerCase();
-        if (ociMsg.includes('importe')) {
-          toInsert = toInsert.map((row) => {
-            const copy = { ...row };
-            delete copy.importe;
-            return copy;
-          });
-        } else if (ociMsg.includes('pedido_item')) {
-          toInsert = toInsert.map((row) => {
-            const copy = { ...row };
-            delete copy.pedido_item_id;
-            return copy;
-          });
-        } else break;
-        ociInsert = await supabase.from('ordenes_compra_items').insert(toInsert);
-      }
-      if (ociInsert.error) {
-        await supabase.from('ordenes_compra').delete().eq('id', ordenCompraId);
-        throw ociInsert.error;
-      }
-
-      if (pedidoId) {
-        try {
-          for (const item of selectedItems) {
-            const { precio_unitario } = getItemSelection(item.id);
-            const { error: upErr } = await supabase
-              .from('pedidos_materiales_items')
-              .update({ orden_compra_id: ordenCompraId, precio_unitario: Number(precio_unitario) || 0 })
-              .eq('id', item.id);
-            if (upErr) throw upErr;
-          }
-        } catch (upErr) {
-          await supabase.from('ordenes_compra_items').delete().eq('orden_compra_id', ordenCompraId);
-          await supabase.from('ordenes_compra').delete().eq('id', ordenCompraId);
-          throw upErr;
-        }
-      }
+      // Creación atómica: header + partidas + enlace de items del pedido en UNA transacción.
+      const { data: nuevaOC, error: rpcError } = await supabase.rpc('crear_orden_compra', {
+        p_oc: insertBody,
+        p_items: ociRows,
+      });
+      if (rpcError) throw rpcError;
+      const ocRow = Array.isArray(nuevaOC) ? nuevaOC[0] : nuevaOC;
+      const folioMostrado = ocRow?.folio ?? ocRow?.folio_oc ?? '';
 
       toast({ title: 'OC generada', description: `Folio: ${folioMostrado || '—'}. ${ociRows.length} partida(s).` });
       window.setTimeout(() => {
