@@ -11,11 +11,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
 import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle, UserPlus, ArrowRightLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
@@ -25,11 +27,18 @@ const round2 = (n) => Math.round(Number(n) * 100) / 100;
  * Permite cambiar Cliente e IVA; calcula total en vivo; intercepta con confirmación si hay cambios.
  */
 const ApproveQuoteModal = ({ open, onOpenChange, quote, onConfirmApproval }) => {
+  const { toast } = useToast();
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState(null); // null = externo
   const [aplicaIva, setAplicaIva] = useState(true);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Tarea 3: resolución de cliente dentro del modal (crear rápido / convertir prospecto)
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [quickNombre, setQuickNombre] = useState('');
+  const [isCreatingCliente, setIsCreatingCliente] = useState(false);
+  const [isConvirtiendo, setIsConvirtiendo] = useState(false);
 
   const aplicaIvaOriginal = quote?.aplica_iva !== false;
   const clienteIdOriginal = quote?.cliente_id ?? null;
@@ -73,13 +82,18 @@ const ApproveQuoteModal = ({ open, onOpenChange, quote, onConfirmApproval }) => 
     setClienteId(quote?.cliente_id ?? null);
   }, [open, quote?.aplica_iva, quote?.cliente_id]);
 
+  const cargarClientes = async () => {
+    const { data } = await supabase.from('clientes').select('id, nombre').order('nombre');
+    setClientes(data || []);
+    return data || [];
+  };
+
   useEffect(() => {
     if (!open) return;
-    supabase
-      .from('clientes')
-      .select('id, nombre')
-      .order('nombre')
-      .then(({ data }) => setClientes(data || []));
+    cargarClientes();
+    // Resetear sub-formularios al abrir
+    setQuickCreateOpen(false);
+    setQuickNombre('');
   }, [open]);
 
   const nombreClienteSeleccionado = useMemo(() => {
@@ -88,7 +102,63 @@ const ApproveQuoteModal = ({ open, onOpenChange, quote, onConfirmApproval }) => 
     return c?.nombre ?? `Cliente #${clienteId}`;
   }, [clienteId, clientes]);
 
+  // Tarea 3: sin cliente real no se puede aprobar (bloqueo duro)
+  const sinCliente = clienteId == null;
+  const tieneProspecto = Boolean(quote?.prospecto_id);
+
+  // Crear cliente rápido (mínimo nombre) e inmediatamente seleccionarlo.
+  const handleCrearClienteRapido = async () => {
+    const nombre = quickNombre.trim();
+    if (!nombre) {
+      toast({ variant: 'destructive', title: 'Nombre requerido', description: 'Escribe el nombre del cliente.' });
+      return;
+    }
+    setIsCreatingCliente(true);
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .insert([{ nombre }])
+        .select('id, nombre')
+        .single();
+      if (error) throw error;
+      await cargarClientes();
+      setClienteId(data.id);
+      setQuickCreateOpen(false);
+      setQuickNombre('');
+      toast({ title: 'Cliente creado', description: `"${data.nombre}" quedó seleccionado para la aprobación.` });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error al crear cliente', description: err.message });
+    } finally {
+      setIsCreatingCliente(false);
+    }
+  };
+
+  // Convertir el prospecto ligado a la cotización en cliente (RPC) y seleccionarlo.
+  const handleConvertirProspecto = async () => {
+    if (!quote?.prospecto_id) return;
+    setIsConvirtiendo(true);
+    try {
+      const { data, error } = await supabase.rpc('crm_convertir_prospecto', {
+        p_prospecto_id: quote.prospecto_id,
+        p_cliente_id: null,
+      });
+      if (error) throw error;
+      if (!data?.ok) {
+        throw new Error(data?.error || data?.mensaje || 'No se pudo convertir el prospecto.');
+      }
+      const nuevoClienteId = data.cliente_id != null ? Number(data.cliente_id) : null;
+      await cargarClientes();
+      if (nuevoClienteId != null) setClienteId(nuevoClienteId);
+      toast({ title: 'Prospecto convertido', description: 'El cliente quedó seleccionado para la aprobación.' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error al convertir prospecto', description: err.message });
+    } finally {
+      setIsConvirtiendo(false);
+    }
+  };
+
   const handleConfirmarAprobacion = () => {
+    if (sinCliente) return; // guardia de UI: no se aprueba sin cliente real
     if (isDirty) {
       setConfirmDialogOpen(true);
     } else {
@@ -99,6 +169,10 @@ const ApproveQuoteModal = ({ open, onOpenChange, quote, onConfirmApproval }) => 
   const ejecutarAprobacion = async () => {
     setConfirmDialogOpen(false);
     if (!quote || !onConfirmApproval) return;
+    if (clienteId == null) {
+      toast({ variant: 'destructive', title: 'Cliente requerido', description: 'No se puede aprobar sin un cliente real.' });
+      return;
+    }
     setIsSubmitting(true);
     try {
       const clienteNombreExterno = clienteId == null ? (quote.cliente_nombre_externo || '') : null;
@@ -157,6 +231,77 @@ const ApproveQuoteModal = ({ open, onOpenChange, quote, onConfirmApproval }) => 
                   searchPlaceholder="Buscar cliente..."
                   notFoundMessage="Ningún cliente encontrado."
                 />
+
+                {/* Tarea 3: bloqueo de aprobación sin cliente real + rutas de resolución */}
+                {sinCliente && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-3 text-sm">
+                    <div className="flex items-start gap-2 text-red-800">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <p>
+                        No se puede aprobar sin un <strong>cliente real</strong>. Asignar cliente mejora la trazabilidad
+                        y permite medir la recurrencia de cada venta. Elige un cliente existente, créalo o convierte el
+                        prospecto.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => setQuickCreateOpen((v) => !v)}
+                        disabled={isSubmitting || isCreatingCliente || isConvirtiendo}
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        Crear cliente rápido
+                      </Button>
+                      {tieneProspecto && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={handleConvertirProspecto}
+                          disabled={isSubmitting || isCreatingCliente || isConvirtiendo}
+                        >
+                          {isConvirtiendo ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+                          Convertir prospecto a cliente
+                        </Button>
+                      )}
+                    </div>
+
+                    {quickCreateOpen && (
+                      <div className="space-y-2 rounded-md border border-red-100 bg-white p-3">
+                        <Label htmlFor="quick-cliente-nombre" className="text-xs">Nombre del cliente</Label>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Input
+                            id="quick-cliente-nombre"
+                            value={quickNombre}
+                            onChange={(e) => setQuickNombre(e.target.value)}
+                            placeholder="Ej. Constructora del Sureste S.A. de C.V."
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleCrearClienteRapido();
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="gap-1.5 bg-blue-600 hover:bg-blue-700 min-h-[40px]"
+                            onClick={handleCrearClienteRapido}
+                            disabled={isCreatingCliente || !quickNombre.trim()}
+                          >
+                            {isCreatingCliente && <Loader2 className="h-4 w-4 animate-spin" />}
+                            Guardar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div className="space-y-0.5">
@@ -208,7 +353,8 @@ const ApproveQuoteModal = ({ open, onOpenChange, quote, onConfirmApproval }) => 
             </DialogClose>
             <Button
               onClick={handleConfirmarAprobacion}
-              disabled={isSubmitting}
+              disabled={isSubmitting || sinCliente}
+              title={sinCliente ? 'Asigna un cliente real para poder aprobar' : undefined}
               className="min-h-[44px] gap-2 bg-green-600 hover:bg-green-700"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
