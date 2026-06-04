@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Pencil } from 'lucide-react';
 import OCResumen from '@/components/oc/OCResumen';
 import OCValidaciones from '@/components/oc/OCValidaciones';
 import OCPagos from '@/components/oc/OCPagos';
 import OCRecepcionMaterial from '@/components/oc/OCRecepcionMaterial';
 import OCFacturas from '@/components/oc/OCFacturas';
 import OCFinanzasResumen from '@/components/oc/OCFinanzasResumen';
+import OCHistorial from '@/components/oc/OCHistorial';
+import EditarOCModal from '@/components/compras/EditarOCModal';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import { unidadImpresionPedidoItem } from '@/lib/pedidoMaterialesItemHelpers';
 
 function formatCurrency(value) {
@@ -29,6 +33,8 @@ const DetalleOCModal = ({ open, onOpenChange, oc, onRefresh }) => {
   const [pagos, setPagos] = useState([]);
   const [recepcionItems, setRecepcionItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [historialKey, setHistorialKey] = useState(0);
 
   const effectiveOC = ocData ?? oc;
 
@@ -191,7 +197,21 @@ const DetalleOCModal = ({ open, onOpenChange, oc, onRefresh }) => {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col w-full">
         <DialogHeader>
-          <DialogTitle>Dashboard — Orden de Compra {effectiveOC?.folio_oc ?? effectiveOC?.folio ?? oc.folio_oc ?? '—'}</DialogTitle>
+          <div className="flex items-center justify-between gap-3 pr-8">
+            <DialogTitle>Dashboard — Orden de Compra {effectiveOC?.folio_oc ?? effectiveOC?.folio ?? oc.folio_oc ?? '—'}</DialogTitle>
+            <PermissionGate modulo="compras" accion="editar" submodulo="ordenes">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setEditOpen(true)}
+                disabled={effectiveOC?.estatus === 'Cancelada'}
+                title={effectiveOC?.estatus === 'Cancelada' ? 'OC cancelada' : 'Editar OC (genera nueva versión)'}
+              >
+                <Pencil className="w-4 h-4" /> Editar
+              </Button>
+            </PermissionGate>
+          </div>
         </DialogHeader>
 
         <div className="overflow-y-auto flex-1 min-h-0 space-y-6">
@@ -199,6 +219,15 @@ const DetalleOCModal = ({ open, onOpenChange, oc, onRefresh }) => {
             oc={effectiveOC}
             montoTotalCalculado={montoTotalCalculado}
             estatusOverride={nuevoEstatus}
+          />
+
+          <OCHistorial oc={effectiveOC} refreshKey={historialKey} />
+
+          <EditarOCModal
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            oc={effectiveOC}
+            onSaved={() => { setHistorialKey((k) => k + 1); fetchPartidasAndOC(); handleRefreshOC(); }}
           />
 
           <OCRecepcionMaterial oc={effectiveOC} onUpdate={handleRefreshOC} />

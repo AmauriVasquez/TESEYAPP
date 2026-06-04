@@ -6,7 +6,6 @@ import { Eye, PlusCircle, Loader2, Ban, Copy } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
 import { fetchPedidosMaterialesListCompat, fetchPedidoMaterialesByIdCompat } from '@/lib/supabasePedidosCompat';
-import { format } from 'date-fns';
 import { formatDateTable } from '@/lib/dateUtils';
 import NuevoPedidoDialog from '@/components/pedidos/NuevoPedidoDialog';
 import EstatusPedidoBadge from '@/components/pedidos/EstatusPedidoBadge';
