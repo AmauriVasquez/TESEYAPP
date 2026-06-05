@@ -146,6 +146,8 @@ const Prospectos = () => {
   };
 
   const handleEdit = useCallback((p) => {
+    setDetalleOpen(false);
+    setProspectoSeleccionado(null);
     setProspectoEditar(p);
     setDialogOpen(true);
   }, []);
