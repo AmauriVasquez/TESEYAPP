@@ -207,7 +207,7 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
   };
 
   const handleConfirmEtapa = async () => {
-    setConfirmEtapaOpen(false);
+    if (isUpdatingEtapa) return;
     setIsUpdatingEtapa(true);
     try {
       const { error } = await supabase
@@ -215,6 +215,7 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
         .update({ etapa: etapaPendiente, motivo_descarte: null })
         .eq('id', prospecto.id);
       if (error) throw error;
+      setConfirmEtapaOpen(false);
       toast({
         title: 'Etapa actualizada',
         description: `El prospecto pasó a: ${ETAPA_LABEL[etapaPendiente]}`,
@@ -230,7 +231,7 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
   };
 
   const handleDescartarConfirm = async () => {
-    setMotivoModalOpen(false);
+    if (isUpdatingEtapa) return;
     setIsUpdatingEtapa(true);
     try {
       const { error } = await supabase
@@ -238,6 +239,7 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
         .update({ etapa: 'descartado', motivo_descarte: motivoDescarte.trim() || null })
         .eq('id', prospecto.id);
       if (error) throw error;
+      setMotivoModalOpen(false);
       toast({ title: 'Prospecto descartado' });
       onRefetch();
       onOpenChange(false);
@@ -664,7 +666,7 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
       />
 
       {/* Confirmación cambio de etapa */}
-      <AlertDialog open={confirmEtapaOpen} onOpenChange={setConfirmEtapaOpen}>
+      <AlertDialog open={confirmEtapaOpen} onOpenChange={(open) => { setConfirmEtapaOpen(open); if (!open) setEtapaPendiente(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Cambiar etapa?</AlertDialogTitle>
@@ -679,16 +681,19 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmEtapa}
+              disabled={isUpdatingEtapa}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              Confirmar
+              {isUpdatingEtapa ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Guardando...</>
+              ) : 'Confirmar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Modal motivo de descarte */}
-      <AlertDialog open={motivoModalOpen} onOpenChange={setMotivoModalOpen}>
+      <AlertDialog open={motivoModalOpen} onOpenChange={(open) => { setMotivoModalOpen(open); if (!open) setEtapaPendiente(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Descartar prospecto</AlertDialogTitle>
@@ -710,9 +715,12 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDescartarConfirm}
+              disabled={isUpdatingEtapa}
               className="bg-red-600 hover:bg-red-700"
             >
-              Descartar
+              {isUpdatingEtapa ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Guardando...</>
+              ) : 'Descartar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
