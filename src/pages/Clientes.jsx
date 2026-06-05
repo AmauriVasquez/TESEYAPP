@@ -6,7 +6,7 @@ import { Plus, Search, Mail, Phone, Building, Edit, Trash2, Eye, Loader2 } from 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import ClienteDialog from '@/components/clientes/ClienteDialog';
-import ClientePreviewDialog from '@/components/clientes/ClientePreviewDialog';
+import ClienteDetalle from '@/components/clientes/ClienteDetalle';
 import { supabase } from '@/lib/customSupabaseClient';
 import {
     AlertDialog,
@@ -247,10 +247,14 @@ const Clientes = () => {
         onSave={handleSave}
         clienteToEdit={selectedCliente}
       />
-      <ClientePreviewDialog
+      <ClienteDetalle
         open={previewOpen}
-        onOpenChange={setPreviewOpen}
+        onOpenChange={(open) => {
+          setPreviewOpen(open);
+          if (!open) setClienteToPreview(null);
+        }}
         cliente={clienteToPreview}
+        onEdit={handleEdit}
       />
       <AlertDialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
             <AlertDialogContent>
