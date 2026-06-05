@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   FilePlus2,
   ExternalLink,
+  Pencil,
 } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
@@ -105,7 +106,7 @@ const ResumenField = ({ label, value }) => (
   </div>
 );
 
-const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
+const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -214,6 +215,18 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch }) => {
                 {ETAPA_LABEL[prospecto.etapa] || prospecto.etapa}
               </span>
             </div>
+            {onEdit && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-2 gap-2"
+                onClick={() => onEdit(prospecto)}
+              >
+                <Pencil className="w-4 h-4" />
+                Editar
+              </Button>
+            )}
             {puedeConvertir && (
               <Button
                 type="button"

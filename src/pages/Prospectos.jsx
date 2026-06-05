@@ -145,6 +145,11 @@ const Prospectos = () => {
     setDialogOpen(true);
   };
 
+  const handleEdit = useCallback((p) => {
+    setProspectoEditar(p);
+    setDialogOpen(true);
+  }, []);
+
   return (
     <>
       <Helmet>
@@ -302,6 +307,7 @@ const Prospectos = () => {
         }}
         prospecto={prospectoSeleccionado}
         onRefetch={refetch}
+        onEdit={handleEdit}
       />
     </>
   );
