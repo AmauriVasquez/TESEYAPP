@@ -72,6 +72,8 @@ const Clientes = () => {
   }, [searchParams, setSearchParams, clientes, loading]);
 
   const handleEdit = (cliente) => {
+    setPreviewOpen(false);
+    setClienteToPreview(null);
     setSelectedCliente(cliente);
     setDialogOpen(true);
   };
