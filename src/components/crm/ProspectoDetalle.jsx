@@ -200,9 +200,9 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
       setCotizaciones([]);
     } else {
       setCotizaciones(data || []);
+      setCotizacionesLoaded(true);
     }
     setLoadingCotizaciones(false);
-    setCotizacionesLoaded(true);
   }, [prospecto?.id, toast]);
 
   useEffect(() => {
@@ -215,6 +215,7 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
       setInteracciones([]);
       setCotizaciones([]);
       setCotizacionesLoaded(false);
+      setLoadingCotizaciones(false);
     }
   }, [open, prospecto?.id, fetchInteracciones]);
 
