@@ -23,6 +23,7 @@ import {
   FilePlus2,
   ExternalLink,
   Pencil,
+  ChevronDown,
 } from 'lucide-react';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
@@ -30,6 +31,24 @@ import InteraccionForm from '@/components/crm/InteraccionForm';
 import CitaForm from '@/components/crm/CitaForm';
 import MarcarRealizadaForm from '@/components/crm/MarcarRealizadaForm';
 import CotizacionDialog from '@/components/cotizaciones/CotizacionDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Textarea } from '@/components/ui/textarea';
 
 const MARCA_BADGE = {
   tesey: 'bg-emerald-100 text-emerald-800',
@@ -64,6 +83,13 @@ const FUENTE_LABEL = {
   llamada_fria: 'Llamada en frío',
   otro: 'Otro',
 };
+
+const ETAPAS_MANUALES = [
+  { value: 'nuevo', label: 'Nuevo' },
+  { value: 'contactado', label: 'Contactado' },
+  { value: 'propuesta_enviada', label: 'Propuesta enviada' },
+  { value: 'en_negociacion', label: 'En negociación' },
+];
 
 const TIPO_ICON = {
   llamada: Phone,
@@ -118,6 +144,11 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
   const [marcarRealizadaOpen, setMarcarRealizadaOpen] = useState(false);
   const [selectedCita, setSelectedCita] = useState(null);
   const [cotizacionOpen, setCotizacionOpen] = useState(false);
+  const [etapaPendiente, setEtapaPendiente] = useState(null);
+  const [confirmEtapaOpen, setConfirmEtapaOpen] = useState(false);
+  const [motivoDescarte, setMotivoDescarte] = useState('');
+  const [motivoModalOpen, setMotivoModalOpen] = useState(false);
+  const [isUpdatingEtapa, setIsUpdatingEtapa] = useState(false);
 
   const fetchInteracciones = useCallback(async () => {
     if (!prospecto?.id) return;
@@ -163,6 +194,60 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
   const handleVerCliente = () => {
     onOpenChange(false);
     navigate(`${clientesBase}?cliente=${prospecto.cliente_id}`);
+  };
+
+  const handleEtapaSelect = (etapa) => {
+    setEtapaPendiente(etapa);
+    if (etapa === 'descartado') {
+      setMotivoDescarte('');
+      setMotivoModalOpen(true);
+    } else {
+      setConfirmEtapaOpen(true);
+    }
+  };
+
+  const handleConfirmEtapa = async () => {
+    setConfirmEtapaOpen(false);
+    setIsUpdatingEtapa(true);
+    try {
+      const { error } = await supabase
+        .from('prospectos')
+        .update({ etapa: etapaPendiente, motivo_descarte: null })
+        .eq('id', prospecto.id);
+      if (error) throw error;
+      toast({
+        title: 'Etapa actualizada',
+        description: `El prospecto pasó a: ${ETAPA_LABEL[etapaPendiente]}`,
+      });
+      onRefetch();
+      onOpenChange(false);
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setIsUpdatingEtapa(false);
+      setEtapaPendiente(null);
+    }
+  };
+
+  const handleDescartarConfirm = async () => {
+    setMotivoModalOpen(false);
+    setIsUpdatingEtapa(true);
+    try {
+      const { error } = await supabase
+        .from('prospectos')
+        .update({ etapa: 'descartado', motivo_descarte: motivoDescarte.trim() || null })
+        .eq('id', prospecto.id);
+      if (error) throw error;
+      toast({ title: 'Prospecto descartado' });
+      onRefetch();
+      onOpenChange(false);
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setIsUpdatingEtapa(false);
+      setMotivoDescarte('');
+      setEtapaPendiente(null);
+    }
   };
 
   const handleConvertir = async () => {
@@ -211,9 +296,49 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
                   {prospecto.marca_origen.toUpperCase()}
                 </span>
               )}
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${etapaClass}`}>
-                {ETAPA_LABEL[prospecto.etapa] || prospecto.etapa}
-              </span>
+              {prospecto.etapa === 'convertido' ? (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${etapaClass}`}>
+                  {ETAPA_LABEL[prospecto.etapa]}
+                </span>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      disabled={isUpdatingEtapa}
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${etapaClass} hover:opacity-80 transition-opacity disabled:opacity-50`}
+                    >
+                      {isUpdatingEtapa ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <>
+                          {ETAPA_LABEL[prospecto.etapa] || prospecto.etapa}
+                          <ChevronDown className="w-3 h-3" />
+                        </>
+                      )}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48">
+                    {ETAPAS_MANUALES.map((e) => (
+                      <DropdownMenuItem
+                        key={e.value}
+                        disabled={e.value === prospecto.etapa}
+                        onClick={() => handleEtapaSelect(e.value)}
+                        className={e.value === prospecto.etapa ? 'font-semibold text-blue-700' : ''}
+                      >
+                        {e.value === prospecto.etapa ? `✓ ${e.label}` : e.label}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      disabled={prospecto.etapa === 'descartado'}
+                      onClick={() => handleEtapaSelect('descartado')}
+                      className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                    >
+                      Descartar…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
             {onEdit && (
               <Button
@@ -537,6 +662,61 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
           onRefetch?.();
         }}
       />
+
+      {/* Confirmación cambio de etapa */}
+      <AlertDialog open={confirmEtapaOpen} onOpenChange={setConfirmEtapaOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cambiar etapa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              El prospecto <span className="font-semibold">{prospecto.nombre}</span> pasará
+              a: <span className="font-semibold">{ETAPA_LABEL[etapaPendiente]}</span>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setEtapaPendiente(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmEtapa}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Modal motivo de descarte */}
+      <AlertDialog open={motivoModalOpen} onOpenChange={setMotivoModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Descartar prospecto</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Deseas indicar el motivo del descarte? (opcional)
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-1 pb-2">
+            <Textarea
+              placeholder="Ej. Presupuesto insuficiente, sin respuesta..."
+              value={motivoDescarte}
+              onChange={(e) => setMotivoDescarte(e.target.value)}
+              className="h-20 resize-none"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setEtapaPendiente(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDescartarConfirm}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Descartar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
