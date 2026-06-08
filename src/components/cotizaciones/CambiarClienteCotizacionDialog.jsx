@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { supabase } from '@/lib/customSupabaseClient';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Check } from 'lucide-react';
 
 export default function CambiarClienteCotizacionDialog({ open, onOpenChange, cotizacion, onSuccess }) {
   const [clientes, setClientes] = useState([]);
@@ -26,6 +26,8 @@ export default function CambiarClienteCotizacionDialog({ open, onOpenChange, cot
     if (result && !result.error) onOpenChange(false);
   };
 
+  const clienteSeleccionado = clientes.find((c) => String(c.id) === clienteId);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
@@ -34,12 +36,28 @@ export default function CambiarClienteCotizacionDialog({ open, onOpenChange, cot
           <p className="text-sm text-gray-600">Cotización: <strong>{cotizacion?.folio}</strong></p>
           <div className="space-y-2">
             <Label>Nuevo cliente</Label>
-            <Select value={clienteId} onValueChange={setClienteId}>
-              <SelectTrigger><SelectValue placeholder="Selecciona un cliente" /></SelectTrigger>
-              <SelectContent>
-                {clientes.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {clienteSeleccionado && (
+              <p className="text-sm font-medium text-blue-700">Seleccionado: {clienteSeleccionado.nombre}</p>
+            )}
+            <Command className="border rounded-md">
+              <CommandInput placeholder="Buscar cliente..." />
+              <CommandList className="max-h-52 overflow-y-auto">
+                <CommandEmpty>Sin resultados.</CommandEmpty>
+                {clientes.map((c) => (
+                  <CommandItem
+                    key={c.id}
+                    value={c.nombre}
+                    onSelect={() => setClienteId(String(c.id))}
+                    className="cursor-pointer"
+                  >
+                    <Check
+                      className={`mr-2 h-4 w-4 ${String(c.id) === clienteId ? 'opacity-100' : 'opacity-0'}`}
+                    />
+                    {c.nombre}
+                  </CommandItem>
+                ))}
+              </CommandList>
+            </Command>
           </div>
         </div>
         <DialogFooter>
