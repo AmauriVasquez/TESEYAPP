@@ -148,6 +148,7 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
   const [interacciones, setInteracciones] = useState([]);
   const [loadingInteracciones, setLoadingInteracciones] = useState(false);
   const [interaccionFormOpen, setInteraccionFormOpen] = useState(false);
+  const [interaccionEditar, setInteraccionEditar] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
   const [citaFormOpen, setCitaFormOpen] = useState(false);
   const [marcarRealizadaOpen, setMarcarRealizadaOpen] = useState(false);
@@ -561,7 +562,7 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
                   type="button"
                   variant="outline"
                   className="flex-1 sm:flex-none"
-                  onClick={() => setInteraccionFormOpen(true)}
+                  onClick={() => { setInteraccionEditar(null); setInteraccionFormOpen(true); }}
                 >
                   + Registrar interacción
                 </Button>
@@ -669,7 +670,23 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
                                         : ''}
                                     </p>
                                   )}
+                                  {item.fecha_hora_programada && item.programada && (
+                                    <p className="text-xs text-indigo-600 mt-1">
+                                      📅 Seguimiento: {formatDate(item.fecha_hora_programada)}
+                                    </p>
+                                  )}
                                 </div>
+                                <button
+                                  type="button"
+                                  className="text-xs text-gray-400 hover:text-blue-600 shrink-0 px-1 py-0.5 rounded hover:bg-blue-50 transition-colors"
+                                  onClick={() => {
+                                    setInteraccionEditar(item);
+                                    setInteraccionFormOpen(true);
+                                  }}
+                                  title="Editar interacción"
+                                >
+                                  ✏️
+                                </button>
                               </li>
                             );
                           })}
@@ -743,10 +760,14 @@ const ProspectoDetalle = ({ open, onOpenChange, prospecto, onRefetch, onEdit }) 
 
       <InteraccionForm
         open={interaccionFormOpen}
-        onOpenChange={setInteraccionFormOpen}
+        onOpenChange={(val) => {
+          setInteraccionFormOpen(val);
+          if (!val) setInteraccionEditar(null);
+        }}
         prospectoId={prospecto.id}
         marcaOrigen={prospecto.marca_origen || 'tesey'}
         onSave={fetchInteracciones}
+        interaccion={interaccionEditar}
       />
 
       <CitaForm
