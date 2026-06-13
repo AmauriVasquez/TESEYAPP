@@ -135,7 +135,14 @@ const Materiales = () => {
     const handleDeleteConfirm = async () => {
         const { error } = await supabase.from('materiales').delete().eq('id', selectedMaterial.id);
         if (error) {
-            toast({ variant: 'destructive', title: 'Error al eliminar', description: error.message });
+            const esFk = error.code === '23503' || /foreign key|movimientos/i.test(error.message || '');
+            toast({
+                variant: 'destructive',
+                title: 'Error al eliminar',
+                description: esFk
+                    ? 'No se puede eliminar: el material tiene movimientos de inventario u otros registros asociados.'
+                    : error.message,
+            });
         } else {
             toast({ title: '✅ Material Eliminado', description: `El material ${selectedMaterial.descripcion} ha sido eliminado.` });
             fetchMateriales();
@@ -162,9 +169,12 @@ const Materiales = () => {
         const { id: _id, ...payload } = cleanMaterialInfo;
 
         if (selectedMaterial) {
+            // Las existencias sólo cambian vía movimientos de inventario (trigger guard en BD).
+            // Excluimos el campo del UPDATE del catálogo para no chocar con esa regla.
+            const { existencias: _ex, ...updatePayload } = payload;
             const { error: materialError } = await supabase
                 .from('materiales')
-                .update(payload)
+                .update(updatePayload)
                 .eq('id', selectedMaterial.id);
 
             if (materialError) {

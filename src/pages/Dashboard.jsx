@@ -130,8 +130,8 @@ const GeneralDashboard = () => {
                 .from('materiales')
                 .select('id, descripcion, existencias, stock_min, stock_max, unidad_compra');
             
-            if (stockFilter === 1) { // Bajo Stock
-                query = query.lt('existencias', supabase.sql('stock_min'));
+            if (stockFilter === 1) { // Bajo Stock (en mínimos: existencias <= stock_min)
+                query = query.lte('existencias', supabase.sql('stock_min'));
             } else if (stockFilter === 2) { // Sobre Stock
                 query = query.gt('existencias', supabase.sql('stock_max'));
             }
@@ -311,7 +311,7 @@ const GeneralDashboard = () => {
                                 </TableHeader>
                                 <TableBody>
                                 {lowStockMaterials.length > 0 ? lowStockMaterials.map((m) => {
-                                    const isLow = m.existencias < m.stock_min;
+                                    const isLow = m.existencias <= m.stock_min;
                                     const isOver = m.stock_max > 0 && m.existencias > m.stock_max;
                                     return (
                                         <TableRow key={m.id}>
