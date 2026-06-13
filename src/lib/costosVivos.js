@@ -88,15 +88,56 @@ export async function recalcularTodosLosCostos() {
   }
 }
 
+const CONFIG_DEFAULTS = {
+  regla_costo: 'ultimo',
+  regla_costo_n: 3,
+  indirectos_pct: 20,
+  utilidad_pct: 30,
+  iva_pct: 16,
+  margen_objetivo_pct: 30,
+  margen_minimo_pct: 15,
+};
+const REGLAS_COSTO_VALIDAS = ['ultimo', 'promedio', 'promedio_ponderado_n', 'mas_alto'];
+
+/**
+ * Construye el payload de configuración usando SOLO los campos de negocio
+ * (whitelist), coercionando numéricos y descartando vacíos/inválidos. Así nunca
+ * llegan al INSERT columnas de metadatos (id, created_at, vigencia) ni cadenas
+ * vacías en columnas numéricas. El orden de prioridad por campo es:
+ * nuevaConfig → previa → default.
+ */
+function construirConfigPayload(nuevaConfig, previa) {
+  const fuente = { ...(previa ?? {}), ...(nuevaConfig ?? {}) };
+  const numero = (valor, fallback) => {
+    const n = Number(valor);
+    return valor === '' || valor == null || Number.isNaN(n) ? fallback : n;
+  };
+  const reglaRaw = fuente.regla_costo;
+  const regla_costo = REGLAS_COSTO_VALIDAS.includes(reglaRaw) ? reglaRaw : CONFIG_DEFAULTS.regla_costo;
+  const reglaN = Math.trunc(numero(fuente.regla_costo_n, CONFIG_DEFAULTS.regla_costo_n));
+  return {
+    regla_costo,
+    regla_costo_n: reglaN >= 1 ? reglaN : 1,
+    indirectos_pct: numero(fuente.indirectos_pct, CONFIG_DEFAULTS.indirectos_pct),
+    utilidad_pct: numero(fuente.utilidad_pct, CONFIG_DEFAULTS.utilidad_pct),
+    iva_pct: numero(fuente.iva_pct, CONFIG_DEFAULTS.iva_pct),
+    margen_objetivo_pct: numero(fuente.margen_objetivo_pct, CONFIG_DEFAULTS.margen_objetivo_pct),
+    margen_minimo_pct: numero(fuente.margen_minimo_pct, CONFIG_DEFAULTS.margen_minimo_pct),
+  };
+}
+
 /**
  * Guarda una nueva versión de la configuración de precios: cierra la fila
  * activa actual (vigente_hasta = ahora) e inserta una nueva fila activa,
- * heredando los valores previos no especificados en `nuevaConfig`. Devuelve
- * { ok }. ok=false si la tabla no existe o hay error.
+ * heredando los valores previos no especificados en `nuevaConfig`. Solo se
+ * insertan campos de negocio (nunca id/vigencia/created_at), por lo que el
+ * estado de la página puede pasarse tal cual. Devuelve { ok }; ok=false si la
+ * tabla no existe o hay error.
  */
 export async function guardarConfigPrecios(nuevaConfig) {
   try {
     const previa = await fetchConfigPrecios();
+    const payload = construirConfigPayload(nuevaConfig, previa);
 
     const { error: cerrarError } = await supabase
       .from('config_precios')
@@ -107,14 +148,7 @@ export async function guardarConfigPrecios(nuevaConfig) {
       return { ok: false };
     }
 
-    const previaSinMeta = { ...(previa ?? {}) };
-    delete previaSinMeta.id;
-    delete previaSinMeta.vigente_desde;
-    delete previaSinMeta.vigente_hasta;
-    delete previaSinMeta.created_at;
-    const merged = { ...previaSinMeta, ...nuevaConfig };
-
-    const { error: insertError } = await supabase.from('config_precios').insert({ ...merged });
+    const { error: insertError } = await supabase.from('config_precios').insert(payload);
     if (insertError) {
       if (!isMissingObjectError(insertError)) console.error('[costosVivos] config insertar:', insertError);
       return { ok: false };
