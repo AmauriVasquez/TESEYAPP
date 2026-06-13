@@ -23,6 +23,7 @@ import ControlPersonal from './pages/ControlPersonal';
 import AdminUsuarios from '@/pages/AdminUsuarios';
 import VentasDashboard from '@/pages/VentasDashboard';
 import Inventario from '@/pages/Inventario';
+import ControlCostos from '@/pages/ControlCostos';
 import ActivosOperativoSeccion from '@/pages/ActivosOperativoSeccion';
 import ToolsManager from '@/components/tools/ToolsManager';
 import {
@@ -252,6 +253,14 @@ function App() {
                   }
                 />
                 <Route path="inventario" element={<Inventario />} />
+                <Route
+                  path="costos"
+                  element={
+                    <ProtectedRoute requiredPermission={{ modulo: 'materiales', accion: 'ver' }}>
+                      <ControlCostos />
+                    </ProtectedRoute>
+                  }
+                />
               </Route>
               <Route
                 path="materiales"

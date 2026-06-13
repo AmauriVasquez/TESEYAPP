@@ -22,6 +22,7 @@ import {
   Factory,
   CalendarClock,
   LayoutDashboard,
+  Coins,
 } from 'lucide-react';
 
 export function ComprasModuleLayout() {
@@ -98,6 +99,7 @@ export function AlmacenModuleLayout() {
       items={[
         { to: '/almacen/materiales', label: 'Materiales', icon: Package },
         { to: '/almacen/inventario', label: 'Inventario', icon: Boxes },
+        { to: '/almacen/costos', label: 'Costos', icon: Coins },
       ]}
     >
       <Outlet />
