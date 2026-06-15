@@ -31,6 +31,7 @@ CREATE OR REPLACE FUNCTION public.get_items_con_pendiente(cotizacion_id_input in
 RETURNS TABLE (
   id bigint,
   descripcion text,
+  observaciones text,
   total numeric,
   entregado numeric,
   pendiente numeric
@@ -43,6 +44,7 @@ AS $$
   SELECT
     ci.id,
     COALESCE(ci.descripcion, '')::text AS descripcion,
+    COALESCE(ci.observaciones, '')::text AS observaciones,
     COALESCE(ci.cantidad, 0)::numeric AS total,
     COALESCE(SUM(ei.cantidad_entregada) FILTER (WHERE e.estado = 'activa'), 0)::numeric AS entregado,
     GREATEST(
@@ -53,7 +55,7 @@ AS $$
   LEFT JOIN public.entregas_items ei ON ei.cotizacion_item_id = ci.id
   LEFT JOIN public.entregas e ON e.id = ei.entrega_id
   WHERE ci.cotizacion_id = cotizacion_id_input
-  GROUP BY ci.id, ci.descripcion, ci.cantidad;
+  GROUP BY ci.id, ci.descripcion, ci.observaciones, ci.cantidad;
 $$;
 
 -- 4) Tras cancelar una entrega, alinear estatus/estado del proyecto con el pendiente real

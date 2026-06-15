@@ -40,6 +40,7 @@ export function mapEntregaItemRow(row) {
   return {
     id,
     descripcion: row.descripcion ?? row.desc ?? '—',
+    observaciones: row.observaciones ?? row.observacion ?? '',
     total: Number(row.total ?? row.cantidad ?? row.cantidad_total ?? 0),
     entregado: Number(row.entregado ?? row.cantidad_entregada ?? 0),
     pendiente,
@@ -297,7 +298,12 @@ function TablaItemsEntregaDesktop({ rows, entrega, completos, tipoEntrega, onCan
             const pendBloqueado = inputsBloqueados || item.pendiente <= 0;
             return (
               <tr key={String(item.id)} className="hover:bg-gray-50/80">
-                <td className="px-3 py-2 align-middle">{item.descripcion}</td>
+                <td className="px-3 py-2 align-middle">
+                  <div>{item.descripcion}</div>
+                  {item.observaciones ? (
+                    <div className="mt-1 text-xs text-gray-500 whitespace-pre-wrap break-words">{item.observaciones}</div>
+                  ) : null}
+                </td>
                 <td className="px-2 py-2 text-right font-mono">{item.total}</td>
                 <td className="px-2 py-2 text-right font-mono">{item.entregado}</td>
                 <td className="px-2 py-2 text-right font-mono text-amber-800">{item.pendiente}</td>
@@ -517,6 +523,9 @@ function EntregaMobileFlow({
                     className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm"
                   >
                     <p className="text-base font-semibold leading-snug text-gray-900">{item.descripcion}</p>
+                    {item.observaciones ? (
+                      <p className="mt-1 text-sm text-gray-500 whitespace-pre-wrap break-words">{item.observaciones}</p>
+                    ) : null}
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
                       <span>Total: <span className="font-mono font-medium text-gray-800">{item.total}</span></span>
                       <span>

@@ -33,6 +33,7 @@ import { unidadImpresionPedidoItem, descripcionImpresionPedidoItem } from '@/lib
 import { es } from 'date-fns/locale';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -133,6 +134,7 @@ const ProyectoDetalle = () => {
   const [entregasBitacora, setEntregasBitacora] = useState([]);
   const [datesModalOpen, setDatesModalOpen] = useState(false);
   const [pendingNuevoEstatus, setPendingNuevoEstatus] = useState(null);
+  const [pendingConfirmEstatus, setPendingConfirmEstatus] = useState(null);
   const [datesModalSubmitting, setDatesModalSubmitting] = useState(false);
   const [showQuotePreview, setShowQuotePreview] = useState(false);
 
@@ -259,6 +261,11 @@ const ProyectoDetalle = () => {
   }, [bitacora, bitacoraFiltro]);
 
   const API_BASE = getApiBase();
+
+  const requestEstatusChange = (nuevoEstatus) => {
+    if (!nuevoEstatus || nuevoEstatus === proyecto?.estatus) return;
+    setPendingConfirmEstatus(nuevoEstatus);
+  };
 
   const updateEstatus = async (nuevoEstatus) => {
     if (proyecto?.estatus === 'Por Iniciar' && nuevoEstatus !== 'Por Iniciar') {
@@ -717,7 +724,7 @@ const ProyectoDetalle = () => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <Button variant="outline" onClick={() => navigate(proyectosListPath)} className="gap-2 self-start"><ArrowLeft className="w-4 h-4" /> Volver</Button>
           <div className="flex items-center gap-2 sm:gap-3 self-stretch sm:self-center">
-             {puedeMarcarTerminado && <Button onClick={() => updateEstatus('Terminado')} className="gap-2 flex-1 sm:flex-none bg-green-600 hover:bg-green-700">Marcar como Terminado</Button>}
+             {puedeMarcarTerminado && <Button onClick={() => requestEstatusChange('Terminado')} className="gap-2 flex-1 sm:flex-none bg-green-600 hover:bg-green-700">Marcar como Terminado</Button>}
              {puedeRegistrarEntrega && (
                <Button
                  onClick={() => setAddEntregaDialogOpen(true)}
@@ -811,7 +818,7 @@ const ProyectoDetalle = () => {
                         </div>
                         <div className="flex items-center gap-2">
                             <h3 className="text-sm font-medium text-gray-500">Estatus del Proyecto:</h3>
-                            <Select value={proyecto.estatus} onValueChange={updateEstatus} disabled={isTerminadoOEntregado}>
+                            <Select value={proyecto.estatus} onValueChange={requestEstatusChange} disabled={isTerminadoOEntregado}>
                                 <SelectTrigger className="h-8 w-auto border-dashed">
                                     <SelectValue/>
                                 </SelectTrigger>
@@ -1299,6 +1306,33 @@ const ProyectoDetalle = () => {
           onConfirm={handleDatesModalConfirm}
           isSubmitting={datesModalSubmitting}
         />
+      )}
+      {proyecto && (
+        <AlertDialog
+          open={pendingConfirmEstatus != null}
+          onOpenChange={(o) => { if (!o) setPendingConfirmEstatus(null); }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar cambio de estatus</AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Cambiar el estatus de "{proyecto?.estatus}" a "{pendingConfirmEstatus}"?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPendingConfirmEstatus(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  const v = pendingConfirmEstatus;
+                  setPendingConfirmEstatus(null);
+                  updateEstatus(v);
+                }}
+              >
+                Confirmar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
       {proyecto?.cotizacion_id && (
         <SeleccionarFormatoCotizacionDialog

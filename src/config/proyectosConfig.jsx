@@ -19,7 +19,7 @@ export const estatusWorkflowOptions = [
   'Detallado',
   'Revisión',
   'Terminado',
-  'Entregado',
+  // 'Entregado' no es seleccionable a mano: lo asigna el flujo de entrega automáticamente
   'Cancelado',
   'Detenido',
 ].map((nombre) => ({ value: nombre, label: nombre }));
