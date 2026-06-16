@@ -22,9 +22,22 @@ const prioridadColors = {
     'Baja': 'border-gray-400 bg-gray-100 text-gray-700',
 };
 
-const ProyectosList = ({ proyectos = [], onDeleteRequest, onSort, sortConfig = {} }) => {
+const ProyectosList = ({
+    proyectos = [],
+    onDeleteRequest,
+    onSort,
+    sortConfig = {},
+    seleccionActiva = false,
+    seleccionados = [],          // array de ids
+    onToggleSeleccion,           // (id) => void
+    onToggleSeleccionTodos,      // (ids) => void
+}) => {
     const navigate = useNavigate();
     const proyectosBase = useProyectosPathPrefix();
+
+    const esEntregable = (p) => Boolean(p.cotizacion_id) && p.estatus !== 'Entregado';
+    const idsElegibles = proyectos.filter(esEntregable).map((p) => p.id);
+    const todosMarcados = idsElegibles.length > 0 && idsElegibles.every((id) => seleccionados.includes(id));
 
     // Helper para renderizar encabezados con flecha
     const SortableHead = ({ label, sortKey, className = "" }) => {
@@ -61,6 +74,17 @@ const ProyectosList = ({ proyectos = [], onDeleteRequest, onSort, sortConfig = {
             <Table>
                 <TableHeader>
                     <TableRow className="bg-gray-50">
+                        {seleccionActiva && (
+                          <TableHead className="w-[44px]">
+                            <input
+                              type="checkbox"
+                              aria-label="Seleccionar todos los elegibles"
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                              checked={todosMarcados}
+                              onChange={() => onToggleSeleccionTodos(idsElegibles)}
+                            />
+                          </TableHead>
+                        )}
                         {/* Usamos el helper para cada columna ordenable */}
                         <SortableHead label="Prioridad" sortKey="prioridad" className="w-[120px]" />
                         <SortableHead label="Folio" sortKey="folio" className="w-[120px]" />
@@ -91,6 +115,18 @@ const ProyectosList = ({ proyectos = [], onDeleteRequest, onSort, sortConfig = {
                             className="hover:bg-gray-50 cursor-pointer border-b transition-colors"
                             onClick={() => navigate(`${proyectosBase}/${proyecto.id}`)}
                         >
+                            {seleccionActiva && (
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Seleccionar ${proyecto.folio}`}
+                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 disabled:opacity-40"
+                                  disabled={!esEntregable(proyecto)}
+                                  checked={seleccionados.includes(proyecto.id)}
+                                  onChange={() => onToggleSeleccion(proyecto.id)}
+                                />
+                              </TableCell>
+                            )}
                             <TableCell>
                                  <Badge variant="outline" className={`font-semibold ${prioridadColors[proyecto.prioridad] || prioridadColors['Baja']}`}>
                                     {proyecto.prioridad}
