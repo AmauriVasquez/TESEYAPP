@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
+import ClienteResumenCards from '@/components/clientes/ClienteResumenCards';
 
 const ESTATUS_COT_BADGE = {
   Borrador: 'bg-gray-100 text-gray-800',
@@ -48,6 +49,9 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
   const [cotizaciones, setCotizaciones] = useState([]);
   const [loadingCotizaciones, setLoadingCotizaciones] = useState(false);
   const [cotizacionesLoaded, setCotizacionesLoaded] = useState(false);
+  const [resumen, setResumen] = useState(null);
+  const [resumenLoading, setResumenLoading] = useState(false);
+  const [resumenError, setResumenError] = useState(false);
 
   const fetchCotizaciones = useCallback(async () => {
     if (!cliente?.id) return;
@@ -81,6 +85,34 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !cliente?.id) {
+      setResumen(null);
+      setResumenError(false);
+      return;
+    }
+    let cancelled = false;
+    setResumenLoading(true);
+    setResumenError(false);
+    supabase
+      .rpc('get_cliente_resumen', { p_cliente_id: cliente.id })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          setResumenError(true);
+          setResumen(null);
+        } else {
+          setResumen(Array.isArray(data) ? data[0] ?? null : data);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setResumenLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, cliente?.id]);
+
   const handleTabChange = (value) => {
     if (value === 'cotizaciones' && !cotizacionesLoaded) {
       fetchCotizaciones();
@@ -110,6 +142,10 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
             </Button>
           )}
         </DialogHeader>
+
+        <div className="mt-3">
+          <ClienteResumenCards resumen={resumen} loading={resumenLoading} error={resumenError} />
+        </div>
 
         <Tabs defaultValue="informacion" onValueChange={handleTabChange} className="mt-2">
           <TabsList className="w-full">
