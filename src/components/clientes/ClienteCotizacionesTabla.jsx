@@ -1,6 +1,3 @@
-// src/components/clientes/ClienteCotizacionesTabla.jsx
-// Tabla de cotizaciones (última versión) de un cliente con enlace al proyecto vinculado
-// y botón de entrega directa cuando el proyecto es elegible.
 import React, { useState } from 'react';
 import { Loader2, PackageCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,6 +19,12 @@ const ESTATUS_PROY_BADGE = {
   Entregado: 'bg-green-100 text-green-700',
 };
 
+const PAGO_BADGE = {
+  Pagado: 'bg-green-100 text-green-800',
+  Parcial: 'bg-amber-100 text-amber-800',
+  Pendiente: 'bg-red-100 text-red-800',
+};
+
 const formatDate = (value) => {
   if (!value) return '—';
   return new Date(
@@ -30,26 +33,40 @@ const formatDate = (value) => {
 };
 
 const formatMXN = (value) =>
-  new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN',
-  }).format(Number(value) || 0);
+  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(value) || 0);
 
-// Regla de elegibilidad: igual que ProyectosList.jsx
-// El proyecto es entregable si tiene cotizacion_id y no está Entregado.
 const esEntregable = (cot) =>
   cot.proyecto_id != null && cot.proyecto_estatus !== 'Entregado';
+
+// Bloque de estatus apilado para una cotización (cot + proyecto + pago cuando Aprobada)
+const EstatusStack = ({ cot }) => (
+  <div className="flex flex-col items-start gap-1">
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ESTATUS_COT_BADGE[cot.estatus] ?? 'bg-gray-100 text-gray-800'}`}>
+      {cot.estatus}
+    </span>
+    {cot.estatus === 'Aprobada' && (
+      <>
+        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${cot.proyecto_estatus ? ESTATUS_PROY_BADGE[cot.proyecto_estatus] ?? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-500'}`}>
+          {cot.proyecto_estatus || 'Sin proyecto'}
+        </span>
+        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${PAGO_BADGE[cot.pago_estatus] ?? 'bg-gray-100 text-gray-800'}`}>
+          Pago: {cot.pago_estatus}
+        </span>
+      </>
+    )}
+  </div>
+);
 
 const ClienteCotizacionesTabla = ({
   cotizaciones = [],
   loading = false,
   error = false,
-  onNavigateCotizacion,   // (cotizacionId) => void
-  onNavigateProyecto,     // (proyectoId) => void
-  onEntregaSuccess,       // () => void  — llamado tras guardar entrega
+  onNavigateCotizacion,
+  onNavigateProyecto,
+  onEntregaSuccess,
 }) => {
   const [masivaOpen, setMasivaOpen] = useState(false);
-  const [proyectoEntrega, setProyectoEntrega] = useState(null); // { id, folio, descripcion, cotizacion_id }
+  const [proyectoEntrega, setProyectoEntrega] = useState(null);
 
   const handleEntregar = (cot) => {
     setProyectoEntrega({
@@ -68,7 +85,6 @@ const ClienteCotizacionesTabla = ({
       </div>
     );
   }
-
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-gray-500">
@@ -76,7 +92,6 @@ const ClienteCotizacionesTabla = ({
       </div>
     );
   }
-
   if (cotizaciones.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-gray-500">
@@ -87,7 +102,58 @@ const ClienteCotizacionesTabla = ({
 
   return (
     <>
-      <div className="overflow-x-auto">
+      {/* MÓVIL — tarjetas apiladas */}
+      <div className="space-y-3 sm:hidden">
+        {cotizaciones.map((cot) => (
+          <div key={cot.id} className="rounded-lg border border-gray-200 p-3 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <button
+                type="button"
+                className="font-mono text-sm font-semibold text-blue-700 hover:underline focus:outline-none text-left"
+                onClick={() => onNavigateCotizacion?.(cot.id)}
+              >
+                {cot.folio}
+              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="font-semibold text-gray-900 text-sm">{formatMXN(cot.total)}</span>
+                {esEntregable(cot) && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-9 w-9 text-teal-600 hover:bg-teal-50"
+                    title="Registrar entrega"
+                    onClick={() => handleEntregar(cot)}
+                  >
+                    <PackageCheck className="h-5 w-5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-700 break-words">{cot.descripcion}</p>
+            <p className="text-xs text-gray-500">{formatDate(cot.fecha)}</p>
+
+            {cot.proyecto_id && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Proyecto:</span>
+                <button
+                  type="button"
+                  className="font-mono text-xs text-teal-700 hover:underline focus:outline-none"
+                  onClick={() => onNavigateProyecto?.(cot.proyecto_id)}
+                >
+                  {cot.proyecto_folio}
+                </button>
+              </div>
+            )}
+
+            <EstatusStack cot={cot} />
+          </div>
+        ))}
+      </div>
+
+      {/* ESCRITORIO — tabla */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="text-xs text-gray-500 uppercase tracking-wide border-b border-gray-100">
@@ -95,15 +161,14 @@ const ClienteCotizacionesTabla = ({
               <th className="text-left py-2 px-2 font-semibold">Descripción</th>
               <th className="text-left py-2 px-2 font-semibold">Fecha</th>
               <th className="text-right py-2 px-2 font-semibold">Total</th>
-              <th className="text-center py-2 px-2 font-semibold">Estatus</th>
               <th className="text-left py-2 px-2 font-semibold">Proyecto</th>
+              <th className="text-left py-2 px-2 font-semibold">Estatus</th>
               <th className="w-[44px]" />
             </tr>
           </thead>
           <tbody>
             {cotizaciones.map((cot) => (
-              <tr key={cot.id} className="border-b border-gray-50 hover:bg-gray-50">
-                {/* Folio cotización — navega al editor */}
+              <tr key={cot.id} className="border-b border-gray-50 hover:bg-gray-50 align-top">
                 <td className="py-2 px-2">
                   <button
                     type="button"
@@ -113,32 +178,13 @@ const ClienteCotizacionesTabla = ({
                     {cot.folio}
                   </button>
                 </td>
-
                 <td className="py-2 px-2 text-gray-700 max-w-[140px]">
-                  <span className="block truncate" title={cot.descripcion}>
-                    {cot.descripcion}
-                  </span>
+                  <span className="block truncate" title={cot.descripcion}>{cot.descripcion}</span>
                 </td>
-
-                <td className="py-2 px-2 text-gray-500 whitespace-nowrap">
-                  {formatDate(cot.fecha)}
-                </td>
-
+                <td className="py-2 px-2 text-gray-500 whitespace-nowrap">{formatDate(cot.fecha)}</td>
                 <td className="py-2 px-2 text-right font-semibold text-gray-900 whitespace-nowrap">
                   {formatMXN(cot.total)}
                 </td>
-
-                <td className="py-2 px-2 text-center">
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      ESTATUS_COT_BADGE[cot.estatus] ?? 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {cot.estatus}
-                  </span>
-                </td>
-
-                {/* Proyecto vinculado */}
                 <td className="py-2 px-2">
                   {cot.proyecto_id ? (
                     <div className="flex flex-col gap-0.5">
@@ -149,20 +195,12 @@ const ClienteCotizacionesTabla = ({
                       >
                         {cot.proyecto_folio}
                       </button>
-                      <span
-                        className={`self-start px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
-                          ESTATUS_PROY_BADGE[cot.proyecto_estatus] ?? 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {cot.proyecto_estatus}
-                      </span>
                     </div>
                   ) : (
                     <span className="text-xs text-gray-400">—</span>
                   )}
                 </td>
-
-                {/* Botón entregar */}
+                <td className="py-2 px-2"><EstatusStack cot={cot} /></td>
                 <td className="py-2 px-1 text-center">
                   {esEntregable(cot) && (
                     <Button
@@ -183,7 +221,6 @@ const ClienteCotizacionesTabla = ({
         </table>
       </div>
 
-      {/* Modal de entrega — acepta array; pasamos el proyecto individual como array de 1 */}
       <EntregaMasivaModal
         open={masivaOpen}
         onOpenChange={setMasivaOpen}
