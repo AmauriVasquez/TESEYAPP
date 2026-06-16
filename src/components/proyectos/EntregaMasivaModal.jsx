@@ -115,8 +115,82 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
     setFotoFile(f);
   };
 
-  // (handleSave se implementa en Task 6)
-  const handleSave = async () => {};
+  const handleSave = async () => {
+    if (saving) return;
+    if (!recibe.trim()) {
+      toast({ variant: 'destructive', title: 'Datos', description: 'Indica quién recibe la mercancía.' });
+      return;
+    }
+    // Construir proyectos con al menos una cantidad > 0
+    const proyectosPayload = proyectos
+      .map((p) => {
+        const st = porProyecto[p.id];
+        const items = (st?.rows || [])
+          .map((r) => ({ cotizacion_item_id: r.id, cantidad_entregada: Number(st.cantidades[r.id] || 0) }))
+          .filter((it) => it.cantidad_entregada > 0);
+        return { proyecto_id: p.id, cotizacion_id: p.cotizacion_id, items, folio: p.folio };
+      })
+      .filter((p) => p.items.length > 0);
+
+    if (proyectosPayload.length === 0) {
+      toast({ variant: 'destructive', title: 'Cantidades', description: 'Ningún proyecto tiene cantidades a entregar.' });
+      return;
+    }
+    if (!fotoFile) {
+      toast({ variant: 'destructive', title: 'Foto requerida', description: 'Agrega una foto de la entrega.' });
+      return;
+    }
+    const sig = sigApiRef.current;
+    if (!sig || sig.isEmpty()) {
+      toast({ variant: 'destructive', title: 'Firma requerida', description: 'Se necesita la firma de recibido.' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Subir foto y firma UNA sola vez (carpeta del primer proyecto)
+      const refId = proyectosPayload[0].proyecto_id;
+      const fotoUrl = await uploadEntregaImage(fotoFile, refId, sanitizeFilename);
+
+      const dataUrl = sig.toDataURL();
+      if (!dataUrl) throw new Error('No se pudo leer la firma.');
+      const blob = await (await fetch(dataUrl)).blob();
+      const firmaPath = `entregas/masiva/${Date.now()}_firma.png`;
+      const { error: firmaErr } = await supabase.storage.from('proyecto_archivos').upload(firmaPath, blob, { contentType: 'image/png' });
+      if (firmaErr) throw new Error(`Error al subir la firma: ${firmaErr.message}`);
+      const firmaUrl = supabase.storage.from('proyecto_archivos').getPublicUrl(firmaPath).data.publicUrl;
+
+      const payload = {
+        recibe_nombre: recibe.trim(),
+        comentarios: comentarios.trim() || null,
+        firma_url: firmaUrl,
+        foto_url: fotoUrl,
+        proyectos: proyectosPayload.map(({ proyecto_id, cotizacion_id, items }) => ({ proyecto_id, cotizacion_id, items })),
+      };
+
+      const { data, error } = await supabase.rpc('registrar_entrega_masiva', { payload });
+      if (error) throw new Error(error.message);
+
+      // Notificar Telegram por cada proyecto que quedó completo
+      const completos = (data?.entregas || []).filter((e) => e.completo);
+      completos.forEach((e) => {
+        const p = proyectos.find((x) => x.id === e.proyecto_id);
+        notifyProjectFinishedOrDelivered({
+          folio: p?.folio || 'Sin folio',
+          cliente_nombre: p?.cliente_nombre || 'Sin cliente',
+          estatus: 'Entregado',
+        });
+      });
+
+      toast({ title: 'Entrega masiva registrada', description: `${proyectosPayload.length} proyecto(s) actualizados.` });
+      onSuccess?.();
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Error al guardar', description: err?.message ?? 'No se pudo completar.' });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
