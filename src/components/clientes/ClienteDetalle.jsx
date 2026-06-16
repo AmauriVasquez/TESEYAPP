@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Building, Mail, Phone, MapPin, FileText, User, Pencil, Loader2 } from 'lucide-react';
+import { Building, Mail, Phone, MapPin, FileText, User, Pencil, PackageCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -11,28 +12,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 import ClienteResumenCards from '@/components/clientes/ClienteResumenCards';
-
-const ESTATUS_COT_BADGE = {
-  Borrador: 'bg-gray-100 text-gray-800',
-  Enviada: 'bg-blue-100 text-blue-800',
-  Aprobada: 'bg-green-100 text-green-800',
-  Rechazada: 'bg-red-100 text-red-800',
-  Historial: 'bg-slate-200 text-slate-700',
-  Obsoleta: 'bg-slate-200 text-slate-600',
-};
-
-const formatDate = (value) => {
-  if (!value) return '—';
-  return new Date(
-    value + (String(value).includes('T') ? '' : 'T00:00:00')
-  ).toLocaleDateString('es-MX');
-};
-
-const formatMXN = (value) =>
-  new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN',
-  }).format(Number(value) || 0);
+import ClienteCotizacionesTabla from '@/components/clientes/ClienteCotizacionesTabla';
 
 const InfoRow = ({ icon: Icon, label, value }) => (
   <div className="flex gap-3 py-3 border-b border-gray-100 last:border-0">
@@ -46,9 +26,11 @@ const InfoRow = ({ icon: Icon, label, value }) => (
 
 const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [cotizaciones, setCotizaciones] = useState([]);
   const [loadingCotizaciones, setLoadingCotizaciones] = useState(false);
   const [cotizacionesLoaded, setCotizacionesLoaded] = useState(false);
+  const [cotizacionesError, setCotizacionesError] = useState(false);
   const [resumen, setResumen] = useState(null);
   const [resumenLoading, setResumenLoading] = useState(false);
   const [resumenError, setResumenError] = useState(false);
@@ -56,12 +38,9 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
   const fetchCotizaciones = useCallback(async () => {
     if (!cliente?.id) return;
     setLoadingCotizaciones(true);
+    setCotizacionesError(false);
     const { data, error } = await supabase
-      .from('cotizaciones')
-      .select('id, folio, descripcion, fecha, total, estatus')
-      .eq('cliente_id', cliente.id)
-      .eq('es_ultima_version', true)
-      .order('fecha', { ascending: false });
+      .rpc('get_cliente_cotizaciones_detalle', { p_cliente_id: cliente.id });
     if (error) {
       toast({
         variant: 'destructive',
@@ -69,6 +48,7 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
         description: 'No se pudieron cargar las cotizaciones.',
       });
       setCotizaciones([]);
+      setCotizacionesError(true);
       // Do NOT set cotizacionesLoaded — allows retry by clicking tab again
     } else {
       setCotizaciones(data || []);
@@ -82,6 +62,7 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
       setCotizaciones([]);
       setCotizacionesLoaded(false);
       setLoadingCotizaciones(false);
+      setCotizacionesError(false);
     }
   }, [open]);
 
@@ -159,6 +140,9 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
                   {cotizaciones.length}
                 </span>
               )}
+              {cotizaciones.some((c) => c.proyecto_id != null && c.proyecto_estatus !== 'Entregado') && (
+                <PackageCheck className="ml-1 h-3.5 w-3.5 text-teal-600" />
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -189,58 +173,22 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
           </TabsContent>
 
           <TabsContent value="cotizaciones" className="mt-4">
-            {loadingCotizaciones ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-              </div>
-            ) : cotizaciones.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-gray-500">
-                <p className="text-sm">Sin cotizaciones registradas para este cliente.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="text-xs text-gray-500 uppercase tracking-wide border-b border-gray-100">
-                      <th className="text-left py-2 px-2 font-semibold">Folio</th>
-                      <th className="text-left py-2 px-2 font-semibold">Descripción</th>
-                      <th className="text-left py-2 px-2 font-semibold">Fecha</th>
-                      <th className="text-right py-2 px-2 font-semibold">Total</th>
-                      <th className="text-center py-2 px-2 font-semibold">Estatus</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cotizaciones.map((cot) => (
-                      <tr key={cot.id} className="border-b border-gray-50 hover:bg-gray-50">
-                        <td className="py-2 px-2 font-mono text-xs text-gray-700">
-                          {cot.folio}
-                        </td>
-                        <td className="py-2 px-2 text-gray-700 max-w-[160px]">
-                          <span className="block truncate" title={cot.descripcion}>
-                            {cot.descripcion}
-                          </span>
-                        </td>
-                        <td className="py-2 px-2 text-gray-500 whitespace-nowrap">
-                          {formatDate(cot.fecha)}
-                        </td>
-                        <td className="py-2 px-2 text-right font-semibold text-gray-900 whitespace-nowrap">
-                          {formatMXN(cot.total)}
-                        </td>
-                        <td className="py-2 px-2 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              ESTATUS_COT_BADGE[cot.estatus] ?? 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {cot.estatus}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <ClienteCotizacionesTabla
+              cotizaciones={cotizaciones}
+              loading={loadingCotizaciones}
+              error={cotizacionesError}
+              onNavigateCotizacion={(id) => {
+                onOpenChange(false);
+                navigate('/cotizaciones', { state: { openCotizacionId: id } });
+              }}
+              onNavigateProyecto={(id) => {
+                onOpenChange(false);
+                navigate('/proyectos/' + id);
+              }}
+              onEntregaSuccess={() => {
+                fetchCotizaciones();
+              }}
+            />
           </TabsContent>
         </Tabs>
       </DialogContent>
