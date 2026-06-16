@@ -14,8 +14,19 @@ import { Loader2, Camera } from 'lucide-react';
 
 const sanitizeFilename = (f) => f.replace(/[^a-zA-Z0-9-_.]/g, '_');
 
+function useIsMobile() {
+  const [m, setM] = React.useState(() => (typeof window !== 'undefined' ? window.innerWidth < 768 : false));
+  React.useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => setM(mq.matches);
+    apply(); mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+  return m;
+}
+
 // Editor de cantidades de UN proyecto (completa/parcial), reutilizando mapEntregaItemRow.
-function ProyectoEditor({ proyecto, rows, loading, tipo, setTipo, cantidades, setCantidades }) {
+function ProyectoEditor({ proyecto, rows, loading, tipo, setTipo, cantidades, setCantidades, isMobile = false }) {
   const setQty = (itemId, max, value) => {
     if (value === '') return setCantidades((p) => ({ ...p, [itemId]: '' }));
     const n = Number(value);
@@ -56,7 +67,8 @@ function ProyectoEditor({ proyecto, rows, loading, tipo, setTipo, cantidades, se
                 <td className="py-1">{r.descripcion}</td>
                 <td className="py-1 text-right font-mono text-amber-800">{r.pendiente}</td>
                 <td className="py-1">
-                  <Input type="number" min={0} max={r.pendiente} className="h-8 text-right font-mono"
+                  <Input type="number" min={0} max={r.pendiente}
+                    className={`text-right font-mono ${isMobile ? 'h-11 text-base' : 'h-8'}`}
                     value={cantidades[r.id] ?? ''} disabled={tipo === 'completa' || r.pendiente <= 0}
                     onChange={(e) => setQty(r.id, r.pendiente, e.target.value)} />
                 </td>
@@ -71,6 +83,7 @@ function ProyectoEditor({ proyecto, rows, loading, tipo, setTipo, cantidades, se
 
 export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [], onSuccess }) {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [porProyecto, setPorProyecto] = useState({}); // { [proyectoId]: { rows, loading, tipo, cantidades } }
   const [recibe, setRecibe] = useState('');
   const [comentarios, setComentarios] = useState('');
@@ -194,7 +207,11 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col gap-4">
+      <DialogContent
+        className={isMobile
+          ? 'flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col gap-3 !overflow-hidden !p-3 !left-0 !top-0 !translate-x-0 !translate-y-0 rounded-none border-0'
+          : 'flex max-h-[90vh] max-w-3xl flex-col gap-4'}
+      >
         <DialogHeader><DialogTitle>Entrega masiva ({proyectos.length} proyectos)</DialogTitle></DialogHeader>
 
         <div className="flex-1 space-y-3 overflow-y-auto py-1">
@@ -210,6 +227,7 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
                 setTipo={(t) => setTipo(p.id, t)}
                 cantidades={st.cantidades}
                 setCantidades={(u) => setCantidades(p.id, u)}
+                isMobile={isMobile}
               />
             );
           })}
@@ -241,7 +259,8 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
 
         <DialogFooter className="gap-2">
           <DialogClose asChild><Button variant="outline" disabled={saving}>Cancelar</Button></DialogClose>
-          <Button onClick={handleSave} disabled={saving} className="gap-2 bg-teal-600 hover:bg-teal-700">
+          <Button onClick={handleSave} disabled={saving}
+            className={`gap-2 bg-teal-600 hover:bg-teal-700 ${isMobile ? 'h-12 text-base' : ''}`}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />} Guardar entrega
           </Button>
         </DialogFooter>
