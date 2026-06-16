@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Helmet } from 'react-helmet';
-import { Plus, Search, Loader2, CalendarCheck } from 'lucide-react';
+import { Plus, Search, Loader2, CalendarCheck, PackageCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
 import { getApiBase } from '@/lib/apiUrl';
 import NuevoProyectoDialog from '@/components/proyectos/NuevoProyectoDialog';
+import EntregaMasivaModal from '@/components/proyectos/EntregaMasivaModal';
 import { notifyNewProject } from '@/services/TelegramService';
 import ProyectosList from '@/components/proyectos/ProyectosList';
 import {
@@ -36,6 +37,11 @@ const Proyectos = () => {
     // Filtros y Ordenamiento
     const [sortConfig, setSortConfig] = useState({ key: 'prioridad', direction: 'ascending' });
     const [statusFilter, setStatusFilter] = useState('activos');
+
+    // Entrega masiva
+    const [seleccionActiva, setSeleccionActiva] = useState(false);
+    const [seleccionados, setSeleccionados] = useState([]); // ids
+    const [masivaOpen, setMasivaOpen] = useState(false);
 
     // ------------------------------------------------------------------
     // CARGA DE DATOS
@@ -93,6 +99,40 @@ const Proyectos = () => {
         setProjectToDelete(proyecto);
         setDeleteConfirmationOpen(true);
     };
+
+    // ------------------------------------------------------------------
+    // SELECCIÓN / ENTREGA MASIVA
+    // ------------------------------------------------------------------
+    const toggleSeleccion = (id) =>
+        setSeleccionados((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+    const toggleSeleccionTodos = (idsElegibles) =>
+        setSeleccionados((prev) =>
+            idsElegibles.every((id) => prev.includes(id))
+                ? prev.filter((id) => !idsElegibles.includes(id))
+                : Array.from(new Set([...prev, ...idsElegibles]))
+        );
+
+    const salirSeleccion = () => {
+        setSeleccionActiva(false);
+        setSeleccionados([]);
+    };
+
+    // Proyectos seleccionados (objetos completos) a partir de la lista cargada
+    const proyectosSeleccionados = useMemo(
+        () => proyectos.filter((p) => seleccionados.includes(p.id)),
+        [proyectos, seleccionados]
+    );
+
+    // Validación: todos del mismo cliente registrado (cliente_id no nulo y único)
+    const clienteIdsSeleccion = useMemo(
+        () => Array.from(new Set(proyectosSeleccionados.map((p) => p.cliente_id ?? null))),
+        [proyectosSeleccionados]
+    );
+    const mismaSeleccionValida =
+        proyectosSeleccionados.length > 0 &&
+        clienteIdsSeleccion.length === 1 &&
+        clienteIdsSeleccion[0] != null;
 
     /** Sincronización masiva + limpieza: (1) Eliminar de Google los terminados/entregados con evento; (2) Crear en Google los activos sin evento. */
     const syncAllToCalendar = async () => {
@@ -338,6 +378,14 @@ const Proyectos = () => {
                             {syncAllLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarCheck className="w-4 h-4" />}
                             Sincronizar con Google Calendar
                         </Button>
+                        <Button
+                            variant={seleccionActiva ? 'secondary' : 'outline'}
+                            onClick={() => (seleccionActiva ? salirSeleccion() : setSeleccionActiva(true))}
+                            className="gap-2"
+                        >
+                            <PackageCheck className="w-4 h-4" />
+                            {seleccionActiva ? 'Cancelar selección' : 'Entrega masiva'}
+                        </Button>
                         <Button onClick={() => setDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700 gap-2">
                             <Plus className="w-4 h-4" /> Nuevo Proyecto
                         </Button>
@@ -422,18 +470,59 @@ const Proyectos = () => {
                     {loading ? (
                         <div className="flex justify-center items-center h-64"><Loader2 className="w-12 h-12 animate-spin text-blue-600" /></div>
                     ) : (
-                        <ProyectosList 
-                            proyectos={sortedAndFilteredProyectos} 
+                        <ProyectosList
+                            proyectos={sortedAndFilteredProyectos}
                             onDeleteRequest={handleDeleteRequest}
                             onSort={handleSort}
                             sortConfig={sortConfig}
+                            seleccionActiva={seleccionActiva}
+                            seleccionados={seleccionados}
+                            onToggleSeleccion={toggleSeleccion}
+                            onToggleSeleccionTodos={toggleSeleccionTodos}
                         />
                     )}
                 </div>
             </div>
 
+            {seleccionActiva && seleccionados.length > 0 && (
+              <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-white px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)]">
+                <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm">
+                    <span className="font-semibold">{seleccionados.length}</span> proyecto(s) seleccionado(s)
+                    {!mismaSeleccionValida && (
+                      <span className="ml-2 text-red-600">— deben ser del mismo cliente registrado</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={salirSeleccion} className="gap-1">
+                      <X className="h-4 w-4" /> Cancelar
+                    </Button>
+                    <Button
+                      disabled={!mismaSeleccionValida}
+                      onClick={() => setMasivaOpen(true)}
+                      className="gap-2 bg-teal-600 hover:bg-teal-700"
+                    >
+                      <PackageCheck className="h-4 w-4" />
+                      Entregar seleccionados ({seleccionados.length})
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <EntregaMasivaModal
+              open={masivaOpen}
+              onOpenChange={setMasivaOpen}
+              proyectos={proyectosSeleccionados}
+              onSuccess={() => {
+                setMasivaOpen(false);
+                salirSeleccion();
+                fetchProyectos();
+              }}
+            />
+
             <NuevoProyectoDialog open={dialogOpen} onOpenChange={setDialogOpen} onSave={handleSave} />
-            
+
             <AlertDialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
