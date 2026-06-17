@@ -150,10 +150,73 @@ const Clientes = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            {loading ? (
-                 <div className="flex justify-center items-center h-64"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
-            ): (
+          {loading ? (
+            <div className="flex justify-center items-center h-64"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
+          ) : filteredClientes.length === 0 ? (
+            <div className="py-12 text-center text-sm text-gray-500">
+              {searchTerm ? 'No se encontraron clientes con ese criterio.' : 'Aún no hay clientes registrados.'}
+            </div>
+          ) : (
+            <>
+              {/* MÓVIL — tarjetas */}
+              <div className="sm:hidden divide-y divide-gray-200">
+                {filteredClientes.map((cliente, index) => (
+                  <motion.div
+                    key={cliente.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(index, 8) * 0.03 }}
+                    onClick={() => handleView(cliente)}
+                    className="p-4 cursor-pointer active:bg-gray-50"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 shrink-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                        <Building className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 break-words">{cliente.nombre}</p>
+                        {cliente.rfc && (
+                          <p className="text-xs font-mono text-gray-500 mt-0.5 break-all">{cliente.rfc}</p>
+                        )}
+                        {cliente.email && (
+                          <div className="flex items-center gap-1.5 text-sm text-gray-600 mt-1 break-all">
+                            <Mail className="w-4 h-4 text-gray-400 shrink-0" />
+                            {cliente.email}
+                          </div>
+                        )}
+                        {cliente.telefono && (
+                          <div className="flex items-center gap-1.5 text-sm text-gray-600 mt-0.5">
+                            <Phone className="w-4 h-4 text-gray-400 shrink-0" />
+                            {cliente.telefono}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); handleEdit(cliente); }}
+                        className="h-10 gap-1.5"
+                      >
+                        <Edit className="w-4 h-4" />
+                        Editar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteRequest(cliente); }}
+                        className="h-10 w-10 text-red-600 hover:bg-red-50 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* ESCRITORIO — tabla */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -239,8 +302,9 @@ const Clientes = () => {
                     ))}
                 </tbody>
                 </table>
-            )}
-          </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
