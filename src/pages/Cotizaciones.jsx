@@ -542,6 +542,53 @@ const Cotizaciones = () => {
     return result;
   }, [cotizaciones, searchTerm, filterStatus, filterMarca, filterEmpresa, filterFechaOrden]);
 
+  // Menú de acciones por cotización — reutilizado en tabla (web) y tarjetas (móvil)
+  const renderAccionesCotizacion = (c) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-9 w-9">
+          <MoreVertical className="w-4 h-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => handlePrint(c)}>
+          <Printer className="mr-2 h-4 w-4 text-amber-600" /> Imprimir
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => { setQuoteToApprove(c); setApproveQuoteModalOpen(true); }} disabled={c.estatus === 'Aprobada'}>
+          <CheckCircle className="mr-2 h-4 w-4 text-green-500" /> Aprobar
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => handleStatusChange(c.id, 'Rechazada')} disabled={c.estatus === 'Rechazada'}>
+          <XCircle className="mr-2 h-4 w-4 text-red-500" /> Rechazar
+        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Edit className="mr-2 h-4 w-4" /> Editar / Versiones
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuItem onSelect={() => handleEdit(c)}>
+              <Edit className="mr-2 h-4 w-4" /> Corregir (Sobrescribir)
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleCrearNuevaVersion(c)}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Crear Nueva Versión
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleDuplicarComoPlantilla(c)}>
+              <Copy className="mr-2 h-4 w-4" /> Duplicar (Como Plantilla)
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuItem onSelect={() => { setCotizacionParaHistorial(c); setHistorialOpen(true); }}>
+          <History className="mr-2 h-4 w-4" /> Ver Historial de Versiones
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => { setCotizacionToChangeClient(c); setChangeClientDialogOpen(true); }}>
+          <User className="mr-2 h-4 w-4" /> Cambiar cliente
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => handleDelete(c.id)} className="text-red-600">
+          <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <>
       <Helmet>
@@ -617,10 +664,55 @@ const Cotizaciones = () => {
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  <div>
                     {loading ? (
                         <div className="flex justify-center items-center h-64"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
+                    ) : filteredCotizaciones.length === 0 ? (
+                        <div className="text-center py-16 text-gray-500">
+                            <h3 className="text-lg font-medium">No hay cotizaciones aún</h3>
+                            <p className="text-sm mt-1">Crea tu primera cotización para empezar.</p>
+                        </div>
                     ) : (
+                      <>
+                        {/* MÓVIL — tarjetas */}
+                        <div className="sm:hidden divide-y divide-gray-200">
+                          {filteredCotizaciones.map((c) => {
+                            const marca = (MARCAS_COMERCIALES.find(m => m.id === c.marca_comercial)?.nombre ?? c.marca_comercial ?? '—').toUpperCase();
+                            const empresa = BRANDINGS.find(b => b.id === c.branding)?.nombre ?? c.branding ?? '—';
+                            const proy = proyectosPorCotizacion[c.id];
+                            return (
+                              <div key={c.id} onClick={() => handleEdit(c)} className="p-4 cursor-pointer active:bg-gray-50">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="font-mono text-sm text-blue-600">{c.folio}</p>
+                                    {c.cotizacion_control && <p className="text-[11px] text-gray-500 font-mono">Control: {c.cotizacion_control}</p>}
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    <EstatusBadge estatus={c.estatus} />
+                                    {renderAccionesCotizacion(c)}
+                                  </div>
+                                </div>
+                                <p className="mt-2 font-medium text-gray-900 break-words">{c.cliente_nombre}</p>
+                                {c.descripcion && <p className="text-sm text-gray-500 break-words">{c.descripcion}</p>}
+                                <div className="mt-2 flex items-center justify-between gap-2">
+                                  <span className="text-sm font-semibold text-gray-900">{c.total.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}</span>
+                                  <span className="text-xs text-gray-500">{formatDateTable(c.fecha)}</span>
+                                </div>
+                                <div className="mt-1 flex items-center justify-between gap-2 text-xs">
+                                  <span className="text-gray-500 break-words">{marca} · {empresa}</span>
+                                  {proy ? (
+                                    <Link to={`${proyectosBase}/${proy.id}`} onClick={(e) => e.stopPropagation()} className="font-mono text-blue-600 hover:underline shrink-0">
+                                      {proy.folio}
+                                    </Link>
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* ESCRITORIO — tabla */}
+                        <div className="hidden sm:block overflow-x-auto">
                         <table className="w-full">
                         <thead className="bg-gray-50 border-b border-gray-200">
                             <tr>
@@ -703,13 +795,14 @@ const Cotizaciones = () => {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {filteredCotizaciones.length > 0 ? filteredCotizaciones.map((c, index) => (
+                            {filteredCotizaciones.map((c, index) => (
                             <motion.tr
                                 key={c.id}
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: index * 0.05 }}
-                                className="hover:bg-gray-50 transition-colors"
+                                onClick={() => handleEdit(c)}
+                                className="hover:bg-gray-50 transition-colors cursor-pointer"
                             >
                                 <td className="px-6 py-4">
                                     <p className="font-mono text-sm text-blue-600">{c.folio}</p>
@@ -719,6 +812,7 @@ const Cotizaciones = () => {
                                     {proyectosPorCotizacion[c.id] ? (
                                         <Link
                                             to={`${proyectosBase}/${proyectosPorCotizacion[c.id].id}`}
+                                            onClick={(e) => e.stopPropagation()}
                                             className="font-mono text-sm text-blue-600 hover:text-blue-800 hover:underline"
                                         >
                                             {proyectosPorCotizacion[c.id].folio}
@@ -750,64 +844,17 @@ const Cotizaciones = () => {
                                 {c.total.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
                                 </td>
                                 <td className="px-6 py-4"><EstatusBadge estatus={c.estatus} /></td>
-                                <td className="px-6 py-4">
+                                <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center justify-end gap-2">
-                                    <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                                        <MoreVertical className="w-4 h-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onSelect={() => handlePrint(c)}>
-                                        <Printer className="mr-2 h-4 w-4 text-amber-600" /> Imprimir
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => { setQuoteToApprove(c); setApproveQuoteModalOpen(true); }} disabled={c.estatus === 'Aprobada'}>
-                                        <CheckCircle className="mr-2 h-4 w-4 text-green-500" /> Aprobar
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => handleStatusChange(c.id, 'Rechazada')} disabled={c.estatus === 'Rechazada'}>
-                                        <XCircle className="mr-2 h-4 w-4 text-red-500" /> Rechazar
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger>
-                                        <Edit className="mr-2 h-4 w-4" /> Editar / Versiones
-                                        </DropdownMenuSubTrigger>
-                                        <DropdownMenuSubContent>
-                                        <DropdownMenuItem onSelect={() => handleEdit(c)}>
-                                        <Edit className="mr-2 h-4 w-4" /> Corregir (Sobrescribir)
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => handleCrearNuevaVersion(c)}>
-                                        <RotateCcw className="mr-2 h-4 w-4" /> Crear Nueva Versión
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => handleDuplicarComoPlantilla(c)}>
-                                        <Copy className="mr-2 h-4 w-4" /> Duplicar (Como Plantilla)
-                                        </DropdownMenuItem>
-                                        </DropdownMenuSubContent>
-                                        </DropdownMenuSub>
-                                        <DropdownMenuItem onSelect={() => { setCotizacionParaHistorial(c); setHistorialOpen(true); }}>
-                                        <History className="mr-2 h-4 w-4" /> Ver Historial de Versiones
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => { setCotizacionToChangeClient(c); setChangeClientDialogOpen(true); }}>
-                                        <User className="mr-2 h-4 w-4" /> Cambiar cliente
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => handleDelete(c.id)} className="text-red-600">
-                                        <Trash2 className="mr-2 h-4 w-4" /> Eliminar
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                    </DropdownMenu>
+                                    {renderAccionesCotizacion(c)}
                                 </div>
                                 </td>
                             </motion.tr>
-                            )) : (
-                                <tr>
-                                    <td colSpan="8" className="text-center py-16 text-gray-500">
-                                        <h3 className="text-lg font-medium">No hay cotizaciones aún</h3>
-                                        <p className="text-sm mt-1">Crea tu primera cotización para empezar.</p>
-                                    </td>
-                                </tr>
-                            )}
+                            ))}
                         </tbody>
                         </table>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>

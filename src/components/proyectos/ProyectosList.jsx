@@ -70,7 +70,70 @@ const ProyectosList = ({
     }
 
     return (
-        <div className="overflow-x-auto">
+        <>
+            {/* MÓVIL — tarjetas */}
+            <div className="sm:hidden divide-y divide-gray-200">
+                {proyectos.map((proyecto) => {
+                    const costoTotal = proyecto.cotizacion?.total || 0;
+                    const totalPagado = proyecto.proyecto_pagos?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
+                    const saldoPendiente = costoTotal - totalPagado;
+                    const isPagado = saldoPendiente <= 0 && costoTotal > 0;
+                    return (
+                        <div
+                            key={proyecto.id}
+                            onClick={() => navigate(`${proyectosBase}/${proyecto.id}`)}
+                            className="p-4 cursor-pointer active:bg-gray-50"
+                        >
+                            <div className="flex items-start gap-3">
+                                {seleccionActiva && (
+                                    <input
+                                        type="checkbox"
+                                        aria-label={`Seleccionar ${proyecto.folio}`}
+                                        className="mt-1 h-5 w-5 shrink-0 rounded border-gray-300 text-blue-600 disabled:opacity-40"
+                                        disabled={!esEntregable(proyecto)}
+                                        checked={seleccionados.includes(proyecto.id)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={() => onToggleSeleccion(proyecto.id)}
+                                    />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="font-mono text-blue-600 font-medium">{proyecto.folio}</span>
+                                        <Badge variant="outline" className={`font-semibold ${prioridadColors[proyecto.prioridad] || prioridadColors['Baja']}`}>
+                                            {proyecto.prioridad}
+                                        </Badge>
+                                    </div>
+                                    <p className="mt-1 font-medium text-gray-800 break-words">{proyecto.descripcion}</p>
+                                    {proyecto.cliente_nombre && <p className="text-sm text-gray-600 break-words">{proyecto.cliente_nombre}</p>}
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        <EstatusBadge estatus={proyecto.estatus} />
+                                        {costoTotal > 0 ? (
+                                            isPagado ? (
+                                                <Badge className="bg-green-100 text-green-800 border border-green-200">PAGADO</Badge>
+                                            ) : (
+                                                <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-200">PENDIENTE</Badge>
+                                            )
+                                        ) : (
+                                            <span className="text-xs text-gray-400 italic">Sin cotización</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-10 w-10 shrink-0 hover:bg-red-50"
+                                    onClick={(e) => { e.stopPropagation(); onDeleteRequest(proyecto); }}
+                                >
+                                    <Trash2 className="w-4 h-4 text-red-500" />
+                                </Button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* ESCRITORIO — tabla */}
+            <div className="hidden sm:block overflow-x-auto">
             <Table>
                 <TableHeader>
                     <TableRow className="bg-gray-50">
@@ -167,7 +230,8 @@ const ProyectosList = ({
                     })}
                 </TableBody>
             </Table>
-        </div>
+            </div>
+        </>
     );
 };
 
