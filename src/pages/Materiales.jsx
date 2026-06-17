@@ -313,8 +313,61 @@ const Materiales = () => {
     };
 
     const renderMaterialesTable = (materialesList) => (
-        <div className="overflow-x-auto">
-            {loading ? <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin"/></div> : (
+        <div>
+            {loading ? <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin"/></div>
+             : materialesList.length === 0 ? (
+                <div className="text-center py-10">
+                    <p className="text-gray-500">No se encontraron materiales en esta categoría.</p>
+                </div>
+             ) : (
+            <>
+            {/* MÓVIL — tarjetas */}
+            <div className="sm:hidden divide-y divide-gray-200">
+                {materialesList.map((material) => {
+                    const tieneClave = material.clave != null && String(material.clave).trim() !== '';
+                    return (
+                        <div key={material.id} onClick={() => handleEditMaterial(material)} className="p-4 cursor-pointer active:bg-gray-50">
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                    {tieneClave ? (
+                                        <span className="font-mono text-blue-600 font-semibold">{material.clave}</span>
+                                    ) : (
+                                        <span className="text-xs text-amber-600 font-medium">Sin Clave</span>
+                                    )}
+                                    <p className="font-medium text-gray-900 break-words">{material.descripcion}</p>
+                                </div>
+                                <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => handleDeleteRequest(material)}><Trash2 className="w-4 h-4 text-red-500"/></Button>
+                                </div>
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span className={cn("text-xs font-semibold px-2 py-1 rounded-full inline-flex w-fit",
+                                   material.categoria === 'Activos' ? 'bg-indigo-100 text-indigo-800' :
+                                   material.categoria === 'Consumibles' ? 'bg-lime-100 text-lime-800' :
+                                   material.categoria === 'Edificio' ? 'bg-amber-100 text-amber-800' :
+                                   material.categoria === 'Servicios' ? 'bg-violet-100 text-violet-800' :
+                                   'bg-blue-100 text-blue-800'
+                                )}>
+                                  {material.categoria}
+                                </span>
+                                {material.familia && <span className="text-xs text-gray-500">{material.familia}</span>}
+                            </div>
+                            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600">
+                                <div>Compra: <span className="font-medium text-gray-800">{material.unidad_compra}</span></div>
+                                <div>Uso: <span className="font-medium text-gray-800">{material.unidad_uso || 'N/A'}{material.factor_conversion ? ` (x${material.factor_conversion})` : ''}</span></div>
+                                <div>C/U: {material.costo_unitario != null ? Number(material.costo_unitario).toFixed(4) : '0'}</div>
+                            </div>
+                            <div className="mt-2 flex items-center gap-2">
+                                <StockIndicator existencias={material.existencias} min={material.stock_min} max={material.stock_max} />
+                                <span className="text-xs text-gray-500">en {material.unidad_uso || 'N/A'}</span>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* ESCRITORIO — tabla */}
+            <div className="hidden sm:block overflow-x-auto">
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -381,11 +434,8 @@ const Materiales = () => {
                     })}
                 </TableBody>
             </Table>
-            )}
-             {materialesList.length === 0 && !loading && (
-                <div className="text-center py-10">
-                    <p className="text-gray-500">No se encontraron materiales en esta categoría.</p>
-                </div>
+            </div>
+            </>
             )}
         </div>
     );

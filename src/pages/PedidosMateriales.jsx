@@ -307,8 +307,53 @@ const PedidosMateriales = ({ isEmbedded = false }) => {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-              {loading ? <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin" /></div> : (
+          <div>
+              {loading ? <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin" /></div>
+               : pedidos.length === 0 ? <p className="text-center py-10 text-gray-500">No hay pedidos registrados.</p>
+               : (
+              <>
+              {/* MÓVIL — tarjetas */}
+              <div className="sm:hidden divide-y divide-gray-200">
+                {(pedidos ?? []).map((pedido) => (
+                  <div key={pedido?.id ?? pedido.folio} onClick={() => handleViewPedido(pedido)} className="p-4 cursor-pointer active:bg-gray-50">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-blue-600">{pedido?.folio ?? '-'}</p>
+                        <p className="text-xs text-gray-500">{formatDateTable(pedido?.fecha)}</p>
+                      </div>
+                      <EstatusPedidoBadge estatus={pedido?.estatus} />
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {(pedido?.tipo_pedido ?? 'material') === 'activo' ? (
+                        <span className="inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-800">Activo</span>
+                      ) : (
+                        <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">Material</span>
+                      )}
+                      <span className="text-sm text-gray-800 break-words">{pedido?.proyecto?.folio ?? (pedido?.cuenta != null ? `Cuenta: ${pedido.cuenta}` : 'N/A')}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">Solicitante: {pedido?.solicitante?.nombre_completo ?? 'N/A'}</p>
+                    {pedido?.oc_folio && <p className="text-xs text-gray-500">OC: <span className="font-mono text-purple-700">{pedido.oc_folio}</span></p>}
+                    <div className="mt-3 flex justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-10 w-10" title="Pedir de nuevo" onClick={() => handleDuplicateOrder(pedido)}>
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-40"
+                        onClick={() => handleCancelPedido(pedido.id)}
+                        disabled={(pedido?.estatus ?? '').toLowerCase().includes('cancel')}
+                        title={(pedido?.estatus ?? '').toLowerCase().includes('cancel') ? 'Pedido cancelado' : 'Cancelar pedido'}
+                      >
+                        <Ban className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ESCRITORIO — tabla */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full min-w-[720px]">
                   <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
@@ -362,8 +407,9 @@ const PedidosMateriales = ({ isEmbedded = false }) => {
                       ))}
                   </tbody>
               </table>
+              </div>
+              </>
               )}
-              {pedidos.length === 0 && !loading && <p className="text-center py-10 text-gray-500">No hay pedidos registrados.</p>}
           </div>
       </div>
       

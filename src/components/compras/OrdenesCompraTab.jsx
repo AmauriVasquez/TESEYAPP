@@ -228,7 +228,74 @@ const OrdenesCompraTab = () => {
           </div>
 
           <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
+            {ordenes.length === 0 ? (
+              <p className="text-center text-gray-500 py-12">No hay órdenes de compra registradas.</p>
+            ) : (
+            <>
+            {/* MÓVIL — tarjetas */}
+            <div className="sm:hidden divide-y">
+              {ordenes.map((oc) => {
+                const { subtotal, iva, total } = getSubtotalIvaTotal(oc);
+                const proveedorNombre = oc.proveedores?.nombre_comercial ?? oc.proveedor?.nombre_comercial ?? '—';
+                const fecha = oc.created_at ?? oc.fecha;
+                return (
+                  <div key={oc.id} onClick={() => setViewOC(oc)} className="p-4 cursor-pointer active:bg-gray-50">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono font-medium">{oc.folio ?? oc.folio_oc ?? '—'}</p>
+                        <p className="text-xs text-gray-500">{fecha ? formatDateTable(fecha) : '—'}</p>
+                      </div>
+                      <p className="font-semibold text-gray-900 shrink-0">{formatCurrency(total)}</p>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-700 break-words">{proveedorNombre}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">Subtotal {formatCurrency(subtotal)} · IVA {formatCurrency(iva)}</p>
+                    <div className="mt-3 flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+                      <Select
+                        value={oc.estatus ?? ''}
+                        onValueChange={(v) => handleEstatusChange(oc.id, v)}
+                        disabled={updatingEstatusId === oc.id}
+                      >
+                        <SelectTrigger className={cn(
+                          'h-10 text-xs w-full max-w-[180px]',
+                          oc.estatus === 'Pendiente de Validación' && 'border-amber-300 bg-amber-50',
+                          oc.estatus === 'Pendiente de Pago' && 'border-orange-300 bg-orange-50',
+                          oc.estatus === 'Pendiente de Entrega' && 'border-blue-300 bg-blue-50',
+                          oc.estatus === 'Completada' && 'border-green-300 bg-green-50',
+                          oc.estatus === 'Cancelada' && 'border-red-300 bg-red-50'
+                        )}>
+                          <SelectValue placeholder="Estatus" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {OPCIONES_ESTATUS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button variant="ghost" size="icon" className="h-10 w-10 text-gray-500 hover:text-gray-700" title="Imprimir" onClick={() => handlePrintClick(oc)}>
+                          <Printer className="w-4 h-4" />
+                        </Button>
+                        <PermissionGate modulo="compras" accion="editar" submodulo="ordenes">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 text-gray-500 hover:text-red-600 disabled:opacity-40"
+                            title={oc.estatus === 'Cancelada' ? 'OC cancelada' : 'Cancelar OC'}
+                            disabled={oc.estatus === 'Cancelada'}
+                            onClick={() => setCancelId(oc.id)}
+                          >
+                            <Ban className="w-4 h-4" />
+                          </Button>
+                        </PermissionGate>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ESCRITORIO — tabla */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
                 <thead className="bg-gray-100 border-b">
                   <tr>
@@ -243,14 +310,7 @@ const OrdenesCompraTab = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {ordenes.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="text-center text-gray-500 py-12">
-                        No hay órdenes de compra registradas.
-                      </td>
-                    </tr>
-                  ) : (
-                    ordenes.map((oc) => {
+                  {ordenes.map((oc) => {
                       const { subtotal, iva, total } = getSubtotalIvaTotal(oc);
                       const proveedorNombre = oc.proveedores?.nombre_comercial ?? oc.proveedor?.nombre_comercial ?? '—';
                       const fecha = oc.created_at ?? oc.fecha;
@@ -309,11 +369,12 @@ const OrdenesCompraTab = () => {
                           </td>
                         </tr>
                       );
-                    })
-                  )}
+                    })}
                 </tbody>
               </table>
             </div>
+            </>
+            )}
           </div>
         </>
       )}
