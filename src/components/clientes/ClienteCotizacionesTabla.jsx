@@ -66,17 +66,32 @@ const ClienteCotizacionesTabla = ({
   onEntregaSuccess,
 }) => {
   const [masivaOpen, setMasivaOpen] = useState(false);
-  const [proyectoEntrega, setProyectoEntrega] = useState(null);
+  const [seleccion, setSeleccion] = useState([]); // ids de cotización seleccionados
 
-  const handleEntregar = (cot) => {
-    setProyectoEntrega({
-      id: cot.proyecto_id,
-      folio: cot.proyecto_folio,
-      descripcion: cot.proyecto_descripcion,
-      cotizacion_id: cot.id,
-    });
-    setMasivaOpen(true);
-  };
+  const elegibles = cotizaciones.filter(esEntregable);
+  const seleccionElegible = seleccion.filter((id) =>
+    elegibles.some((c) => c.id === id)
+  );
+  const todasSeleccionadas =
+    elegibles.length > 0 && elegibles.every((c) => seleccion.includes(c.id));
+
+  const toggle = (id) =>
+    setSeleccion((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+
+  const toggleTodas = () =>
+    setSeleccion(todasSeleccionadas ? [] : elegibles.map((c) => c.id));
+
+  // Proyectos a entregar (uno por cotización seleccionada elegible)
+  const proyectosParaEntrega = cotizaciones
+    .filter((c) => seleccionElegible.includes(c.id))
+    .map((c) => ({
+      id: c.proyecto_id,
+      folio: c.proyecto_folio,
+      descripcion: c.proyecto_descripcion,
+      cotizacion_id: c.id,
+    }));
 
   if (loading) {
     return (
@@ -102,54 +117,83 @@ const ClienteCotizacionesTabla = ({
 
   return (
     <>
+      {/* Barra de acción masiva — visible cuando hay proyectos entregables */}
+      {elegibles.length > 0 && (
+        <div className="sticky top-0 z-10 mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-teal-100 bg-teal-50/80 px-3 py-2 backdrop-blur">
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              className="h-5 w-5 accent-teal-600"
+              checked={todasSeleccionadas}
+              onChange={toggleTodas}
+            />
+            Seleccionar todas ({elegibles.length} por entregar)
+          </label>
+          <Button
+            type="button"
+            size="sm"
+            className="h-10 gap-2 bg-teal-600 hover:bg-teal-700"
+            disabled={seleccionElegible.length === 0}
+            onClick={() => setMasivaOpen(true)}
+          >
+            <PackageCheck className="h-4 w-4" />
+            Entregar seleccionadas ({seleccionElegible.length})
+          </Button>
+        </div>
+      )}
+
       {/* MÓVIL — tarjetas apiladas */}
       <div className="space-y-3 sm:hidden">
-        {cotizaciones.map((cot) => (
-          <div key={cot.id} className="rounded-lg border border-gray-200 p-3 space-y-2">
-            <div className="flex items-start justify-between gap-2">
-              <button
-                type="button"
-                className="font-mono text-sm font-semibold text-blue-700 hover:underline focus:outline-none text-left"
-                onClick={() => onNavigateCotizacion?.(cot.id)}
-              >
-                {cot.folio}
-              </button>
-              <div className="flex items-center gap-1 shrink-0">
-                <span className="font-semibold text-gray-900 text-sm">{formatMXN(cot.total)}</span>
-                {esEntregable(cot) && (
-                  <Button
+        {cotizaciones.map((cot) => {
+          const entregable = esEntregable(cot);
+          const marcada = seleccion.includes(cot.id);
+          return (
+            <div
+              key={cot.id}
+              className={`rounded-lg border p-3 space-y-2 ${marcada ? 'border-teal-400 bg-teal-50/40' : 'border-gray-200'}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2 min-w-0">
+                  {entregable && (
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-5 w-5 shrink-0 accent-teal-600"
+                      checked={marcada}
+                      onChange={() => toggle(cot.id)}
+                      aria-label={`Seleccionar ${cot.folio}`}
+                    />
+                  )}
+                  <button
                     type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="h-9 w-9 text-teal-600 hover:bg-teal-50"
-                    title="Registrar entrega"
-                    onClick={() => handleEntregar(cot)}
+                    className="font-mono text-sm font-semibold text-blue-700 hover:underline focus:outline-none text-left"
+                    onClick={() => onNavigateCotizacion?.(cot.id)}
                   >
-                    <PackageCheck className="h-5 w-5" />
-                  </Button>
-                )}
+                    {cot.folio}
+                  </button>
+                </div>
+                <span className="shrink-0 font-semibold text-gray-900 text-sm">{formatMXN(cot.total)}</span>
               </div>
+
+              <p className="text-sm text-gray-700 break-words">{cot.descripcion}</p>
+              <p className="text-xs text-gray-500">{formatDate(cot.fecha)}</p>
+
+              {cot.proyecto_id && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Proyecto:</span>
+                  <button
+                    type="button"
+                    className="font-mono text-xs text-teal-700 hover:underline focus:outline-none"
+                    onClick={() => onNavigateProyecto?.(cot.proyecto_id)}
+                  >
+                    {cot.proyecto_folio}
+                  </button>
+                </div>
+              )}
+
+              <EstatusStack cot={cot} />
             </div>
-
-            <p className="text-sm text-gray-700 break-words">{cot.descripcion}</p>
-            <p className="text-xs text-gray-500">{formatDate(cot.fecha)}</p>
-
-            {cot.proyecto_id && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">Proyecto:</span>
-                <button
-                  type="button"
-                  className="font-mono text-xs text-teal-700 hover:underline focus:outline-none"
-                  onClick={() => onNavigateProyecto?.(cot.proyecto_id)}
-                >
-                  {cot.proyecto_folio}
-                </button>
-              </div>
-            )}
-
-            <EstatusStack cot={cot} />
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ESCRITORIO — tabla */}
@@ -157,37 +201,63 @@ const ClienteCotizacionesTabla = ({
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="text-xs text-gray-500 uppercase tracking-wide border-b border-gray-100">
+              <th className="w-[36px] py-2 px-1 text-center">
+                {elegibles.length > 0 && (
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-teal-600"
+                    checked={todasSeleccionadas}
+                    onChange={toggleTodas}
+                    aria-label="Seleccionar todas"
+                  />
+                )}
+              </th>
               <th className="text-left py-2 px-2 font-semibold">Folio</th>
               <th className="text-left py-2 px-2 font-semibold">Descripción</th>
               <th className="text-left py-2 px-2 font-semibold">Fecha</th>
               <th className="text-right py-2 px-2 font-semibold">Total</th>
               <th className="text-left py-2 px-2 font-semibold">Proyecto</th>
               <th className="text-left py-2 px-2 font-semibold">Estatus</th>
-              <th className="w-[44px]" />
             </tr>
           </thead>
           <tbody>
-            {cotizaciones.map((cot) => (
-              <tr key={cot.id} className="border-b border-gray-50 hover:bg-gray-50 align-top">
-                <td className="py-2 px-2">
-                  <button
-                    type="button"
-                    className="font-mono text-xs text-blue-700 hover:underline focus:outline-none"
-                    onClick={() => onNavigateCotizacion?.(cot.id)}
-                  >
-                    {cot.folio}
-                  </button>
-                </td>
-                <td className="py-2 px-2 text-gray-700 max-w-[140px]">
-                  <span className="block truncate" title={cot.descripcion}>{cot.descripcion}</span>
-                </td>
-                <td className="py-2 px-2 text-gray-500 whitespace-nowrap">{formatDate(cot.fecha)}</td>
-                <td className="py-2 px-2 text-right font-semibold text-gray-900 whitespace-nowrap">
-                  {formatMXN(cot.total)}
-                </td>
-                <td className="py-2 px-2">
-                  {cot.proyecto_id ? (
-                    <div className="flex flex-col gap-0.5">
+            {cotizaciones.map((cot) => {
+              const entregable = esEntregable(cot);
+              const marcada = seleccion.includes(cot.id);
+              return (
+                <tr
+                  key={cot.id}
+                  className={`border-b border-gray-50 align-top ${marcada ? 'bg-teal-50/50' : 'hover:bg-gray-50'}`}
+                >
+                  <td className="py-2 px-1 text-center">
+                    {entregable && (
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-teal-600"
+                        checked={marcada}
+                        onChange={() => toggle(cot.id)}
+                        aria-label={`Seleccionar ${cot.folio}`}
+                      />
+                    )}
+                  </td>
+                  <td className="py-2 px-2">
+                    <button
+                      type="button"
+                      className="font-mono text-xs text-blue-700 hover:underline focus:outline-none"
+                      onClick={() => onNavigateCotizacion?.(cot.id)}
+                    >
+                      {cot.folio}
+                    </button>
+                  </td>
+                  <td className="py-2 px-2 text-gray-700 max-w-[140px]">
+                    <span className="block truncate" title={cot.descripcion}>{cot.descripcion}</span>
+                  </td>
+                  <td className="py-2 px-2 text-gray-500 whitespace-nowrap">{formatDate(cot.fecha)}</td>
+                  <td className="py-2 px-2 text-right font-semibold text-gray-900 whitespace-nowrap">
+                    {formatMXN(cot.total)}
+                  </td>
+                  <td className="py-2 px-2">
+                    {cot.proyecto_id ? (
                       <button
                         type="button"
                         className="font-mono text-xs text-teal-700 hover:underline focus:outline-none text-left"
@@ -195,28 +265,14 @@ const ClienteCotizacionesTabla = ({
                       >
                         {cot.proyecto_folio}
                       </button>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-gray-400">—</span>
-                  )}
-                </td>
-                <td className="py-2 px-2"><EstatusStack cot={cot} /></td>
-                <td className="py-2 px-1 text-center">
-                  {esEntregable(cot) && (
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-teal-600 hover:bg-teal-50 hover:text-teal-700"
-                      title="Registrar entrega"
-                      onClick={() => handleEntregar(cot)}
-                    >
-                      <PackageCheck className="h-4 w-4" />
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2"><EstatusStack cot={cot} /></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -224,9 +280,10 @@ const ClienteCotizacionesTabla = ({
       <EntregaMasivaModal
         open={masivaOpen}
         onOpenChange={setMasivaOpen}
-        proyectos={proyectoEntrega ? [proyectoEntrega] : []}
+        proyectos={proyectosParaEntrega}
         onSuccess={() => {
           setMasivaOpen(false);
+          setSeleccion([]);
           onEntregaSuccess?.();
         }}
       />

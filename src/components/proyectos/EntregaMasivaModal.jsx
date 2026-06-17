@@ -63,8 +63,15 @@ function ProyectoEditor({ proyecto, rows, loading, tipo, setTipo, cantidades, se
           </tr></thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={String(r.id)} className="border-t">
-                <td className="py-1">{r.descripcion}</td>
+              <tr key={String(r.id)} className="border-t align-top">
+                <td className="py-1">
+                  <span className="block">{r.descripcion}</span>
+                  {r.observaciones ? (
+                    <span className="mt-0.5 block whitespace-pre-wrap break-words text-xs text-gray-500">
+                      {r.observaciones}
+                    </span>
+                  ) : null}
+                </td>
                 <td className="py-1 text-right font-mono text-amber-800">{r.pendiente}</td>
                 <td className="py-1">
                   <Input type="number" min={0} max={r.pendiente}
