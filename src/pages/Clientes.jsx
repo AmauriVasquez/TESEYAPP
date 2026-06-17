@@ -178,7 +178,8 @@ const Clientes = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="hover:bg-gray-50 transition-colors"
+                        onClick={() => handleView(cliente)}
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
                     >
                         <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -211,7 +212,7 @@ const Clientes = () => {
                             <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleView(cliente)}
+                            onClick={(e) => { e.stopPropagation(); handleView(cliente); }}
                             className="hover:bg-blue-50 hover:text-blue-600"
                             >
                             <Eye className="w-4 h-4" />
@@ -219,7 +220,7 @@ const Clientes = () => {
                             <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleEdit(cliente)}
+                            onClick={(e) => { e.stopPropagation(); handleEdit(cliente); }}
                             className="hover:bg-blue-50 hover:text-blue-600"
                             >
                             <Edit className="w-4 h-4" />
@@ -227,7 +228,7 @@ const Clientes = () => {
                             <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDeleteRequest(cliente)}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteRequest(cliente); }}
                             className="hover:bg-red-50 hover:text-red-600"
                             >
                             <Trash2 className="w-4 h-4" />

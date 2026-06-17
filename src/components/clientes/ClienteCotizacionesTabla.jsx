@@ -38,24 +38,38 @@ const formatMXN = (value) =>
 const esEntregable = (cot) =>
   cot.proyecto_id != null && cot.proyecto_estatus !== 'Entregado';
 
-// Bloque de estatus apilado para una cotización (cot + proyecto + pago cuando Aprobada)
-const EstatusStack = ({ cot }) => (
-  <div className="flex flex-col items-start gap-1">
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ESTATUS_COT_BADGE[cot.estatus] ?? 'bg-gray-100 text-gray-800'}`}>
-      {cot.estatus}
-    </span>
-    {cot.estatus === 'Aprobada' && (
-      <>
-        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${cot.proyecto_estatus ? ESTATUS_PROY_BADGE[cot.proyecto_estatus] ?? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-500'}`}>
-          {cot.proyecto_estatus || 'Sin proyecto'}
-        </span>
-        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${PAGO_BADGE[cot.pago_estatus] ?? 'bg-gray-100 text-gray-800'}`}>
-          Pago: {cot.pago_estatus}
-        </span>
-      </>
-    )}
-  </div>
-);
+// Bloque de estatus apilado para una cotización (cot + proyecto + pago cuando Aprobada).
+// El badge de pago es un botón que lleva al control financiero del proyecto.
+const EstatusStack = ({ cot, onNavigatePagos }) => {
+  const pagoClickable = Boolean(cot.proyecto_id) && typeof onNavigatePagos === 'function';
+  const pagoClass = `px-1.5 py-0.5 rounded-full text-[10px] font-medium ${PAGO_BADGE[cot.pago_estatus] ?? 'bg-gray-100 text-gray-800'}`;
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ESTATUS_COT_BADGE[cot.estatus] ?? 'bg-gray-100 text-gray-800'}`}>
+        {cot.estatus}
+      </span>
+      {cot.estatus === 'Aprobada' && (
+        <>
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${cot.proyecto_estatus ? ESTATUS_PROY_BADGE[cot.proyecto_estatus] ?? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-500'}`}>
+            {cot.proyecto_estatus || 'Sin proyecto'}
+          </span>
+          {pagoClickable ? (
+            <button
+              type="button"
+              className={`${pagoClass} hover:brightness-95 hover:underline focus:outline-none`}
+              title="Ver pagos del proyecto"
+              onClick={() => onNavigatePagos(cot.proyecto_id)}
+            >
+              Pago: {cot.pago_estatus} ›
+            </button>
+          ) : (
+            <span className={pagoClass}>Pago: {cot.pago_estatus}</span>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
 
 const ClienteCotizacionesTabla = ({
   cotizaciones = [],
@@ -63,6 +77,7 @@ const ClienteCotizacionesTabla = ({
   error = false,
   onNavigateCotizacion,
   onNavigateProyecto,
+  onNavigatePagos,
   onEntregaSuccess,
 }) => {
   const [masivaOpen, setMasivaOpen] = useState(false);
@@ -190,7 +205,7 @@ const ClienteCotizacionesTabla = ({
                 </div>
               )}
 
-              <EstatusStack cot={cot} />
+              <EstatusStack cot={cot} onNavigatePagos={onNavigatePagos} />
             </div>
           );
         })}
@@ -269,7 +284,7 @@ const ClienteCotizacionesTabla = ({
                       <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
-                  <td className="py-2 px-2"><EstatusStack cot={cot} /></td>
+                  <td className="py-2 px-2"><EstatusStack cot={cot} onNavigatePagos={onNavigatePagos} /></td>
                 </tr>
               );
             })}

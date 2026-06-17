@@ -104,7 +104,7 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[580px] max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[720px] lg:max-w-[940px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building className="w-5 h-5 text-blue-600" />
@@ -184,6 +184,10 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
               onNavigateProyecto={(id) => {
                 onOpenChange(false);
                 navigate('/proyectos/' + id);
+              }}
+              onNavigatePagos={(proyectoId) => {
+                onOpenChange(false);
+                navigate('/proyectos/' + proyectoId, { state: { scrollToPagos: true } });
               }}
               onEntregaSuccess={() => {
                 fetchCotizaciones();

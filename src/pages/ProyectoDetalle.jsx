@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useProyectosPathPrefix } from '@/hooks/useProyectosPathPrefix';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
@@ -94,6 +94,7 @@ const MaterialStatusIndicator = ({ materiales }) => {
 const ProyectoDetalle = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const proyectosListPath = useProyectosPathPrefix();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -122,6 +123,18 @@ const ProyectoDetalle = () => {
   const [addEntregaDialogOpen, setAddEntregaDialogOpen] = useState(false);
   const [addPagoDialogOpen, setAddPagoDialogOpen] = useState(false);
   const [pagoEnEdicion, setPagoEnEdicion] = useState(null);
+
+  // Deep-link al control financiero: navegar con state.scrollToPagos hace scroll
+  // a la tarjeta "Control Financiero" una vez cargado el proyecto.
+  useEffect(() => {
+    if (loading || !location.state?.scrollToPagos) return;
+    const raf = requestAnimationFrame(() => {
+      document.getElementById('seccion-pagos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    // Limpiar el state para que no vuelva a hacer scroll al re-render
+    navigate(location.pathname, { replace: true, state: {} });
+    return () => cancelAnimationFrame(raf);
+  }, [loading, location.state, location.pathname, navigate]);
   const [comprobantePago, setComprobantePago] = useState(null);
   const [asignarResponsableOpen, setAsignarResponsableOpen] = useState(false);
   const [isEditingPriority, setIsEditingPriority] = useState(false);
@@ -1054,7 +1067,7 @@ const ProyectoDetalle = () => {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl border shadow-sm">
+            <div id="seccion-pagos" className="scroll-mt-20 bg-white p-6 rounded-xl border shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold">Control Financiero</h2>
                     {saldoPendiente <= 0 ? (
