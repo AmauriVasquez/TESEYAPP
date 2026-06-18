@@ -160,7 +160,59 @@ const ProspectoTabla = ({ prospectos, onCardClick, proximaInteraccion = {} }) =>
         </select>
       </div>
 
-      <div className="overflow-x-auto bg-white rounded-xl border border-gray-100 shadow-sm">
+      <>
+      {/* MÓVIL — tarjetas */}
+      <div className="sm:hidden space-y-3">
+        {visibles.map((p) => {
+          const prox = proximaInteraccion[p.id];
+          return (
+            <div
+              key={p.id}
+              onClick={() => onCardClick(p)}
+              className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 cursor-pointer active:bg-gray-50"
+              style={{ borderLeft: `4px solid ${ETAPA_BORDER[p.etapa] || '#e5e7eb'}` }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 break-words">{p.nombre}</p>
+                  {p.nombre_contacto && <p className="text-xs text-gray-500">{p.nombre_contacto}</p>}
+                </div>
+                <span className="shrink-0 font-semibold text-gray-800">{fmtMXN(p.valor_estimado)}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Pill def={ETAPA_PILL[p.etapa]} fallback={p.etapa} />
+                <Pill def={FUENTE_PILL[p.fuente]} fallback={p.fuente} />
+              </div>
+              {(p.razon_social || p.industria) && (
+                <p className="mt-2 text-sm text-gray-700 break-words">
+                  {p.razon_social || p.nombre}{p.industria ? ` · ${p.industria}` : ''}
+                </p>
+              )}
+              <div className="mt-2 flex flex-col gap-1 text-sm" onClick={(e) => e.stopPropagation()}>
+                {p.email && <a href={`mailto:${p.email}`} className="text-blue-600 hover:underline break-all">{p.email}</a>}
+                {p.telefono && <a href={`tel:${p.telefono}`} className="text-gray-700 hover:underline"><span aria-hidden="true">🇲🇽</span> {p.telefono}</a>}
+              </div>
+              {prox && (
+                <p className="mt-2 text-xs text-indigo-600 font-medium">
+                  Próxima: {fmtProxima(prox.fecha_hora_programada)} · {TIPO_LABEL[prox.tipo] || prox.tipo}
+                </p>
+              )}
+              {p.etapa === 'convertido' && p.cliente_id != null && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); navigate(`${clientesBase}?cliente=${p.cliente_id}`); }}
+                  className="mt-2 flex items-center gap-1 text-xs text-emerald-700 hover:underline"
+                >
+                  <ExternalLink className="w-3 h-3" /> Ver cliente
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ESCRITORIO — tabla */}
+      <div className="hidden sm:block overflow-x-auto bg-white rounded-xl border border-gray-100 shadow-sm">
         <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-gray-50">
             <tr className="border-b border-gray-200 text-left">
@@ -242,6 +294,7 @@ const ProspectoTabla = ({ prospectos, onCardClick, proximaInteraccion = {} }) =>
           </tbody>
         </table>
       </div>
+      </>
     </div>
   );
 };
