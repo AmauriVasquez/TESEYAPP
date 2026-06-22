@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Loader2, PackageCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import EntregaMasivaModal from '@/components/proyectos/EntregaMasivaModal';
@@ -98,15 +98,21 @@ const ClienteCotizacionesTabla = ({
   const toggleTodas = () =>
     setSeleccion(todasSeleccionadas ? [] : elegibles.map((c) => c.id));
 
-  // Proyectos a entregar (uno por cotización seleccionada elegible)
-  const proyectosParaEntrega = cotizaciones
-    .filter((c) => seleccionElegible.includes(c.id))
-    .map((c) => ({
-      id: c.proyecto_id,
-      folio: c.proyecto_folio,
-      descripcion: c.proyecto_descripcion,
-      cotizacion_id: c.id,
-    }));
+  // Proyectos a entregar (uno por cotización seleccionada elegible).
+  // Memoizado en [cotizaciones, seleccion] para mantener identidad estable y no
+  // reiniciar el modal de entrega en re-renders incidentales (ver EntregaMasivaModal).
+  const proyectosParaEntrega = useMemo(
+    () =>
+      cotizaciones
+        .filter((c) => seleccion.includes(c.id) && c.proyecto_id != null && c.proyecto_estatus !== 'Entregado')
+        .map((c) => ({
+          id: c.proyecto_id,
+          folio: c.proyecto_folio,
+          descripcion: c.proyecto_descripcion,
+          cotizacion_id: c.id,
+        })),
+    [cotizaciones, seleccion]
+  );
 
   if (loading) {
     return (

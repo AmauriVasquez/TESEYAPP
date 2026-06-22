@@ -100,7 +100,13 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
   const sigApiRef = useRef(null);
   const fotoInputRef = useRef(null);
 
-  // Cargar pendiente de cada proyecto al abrir
+  // Clave estable de la selección (ids de proyecto). Evita que un re-render del
+  // padre que recrea el array `proyectos` reinicie el formulario: al tomar la foto,
+  // cerrar la cámara dispara 'focus' en window y algunos padres re-fetchean, lo que
+  // cambiaba la identidad de `proyectos` y borraba nombre/comentarios/foto.
+  const proyectosKey = proyectos.map((p) => p.id).join('|');
+
+  // Cargar pendiente de cada proyecto al abrir (o si cambia el conjunto de proyectos)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -121,7 +127,10 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
       }
     })();
     return () => { cancelled = true; };
-  }, [open, proyectos]);
+    // Dep en `proyectosKey` (string estable), no en el array `proyectos`, para no
+    // reiniciar el formulario en re-renders incidentales del padre.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, proyectosKey]);
 
   const setTipo = useCallback((pid, tipo) =>
     setPorProyecto((prev) => ({ ...prev, [pid]: { ...prev[pid], tipo } })), []);
