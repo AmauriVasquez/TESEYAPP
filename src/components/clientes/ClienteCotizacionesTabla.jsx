@@ -82,32 +82,19 @@ const EstatusStack = ({ cot, onNavigatePagos }) => {
   );
 };
 
-// Encabezado de columna con menú desplegable de orden (estilo página de Cotizaciones).
-const SortHeader = ({ label, colKey, sortKey, sortDir, onSort, align = 'left' }) => {
+// Encabezado de columna: clic alterna el orden (asc ↔ desc), sin menú.
+const SortHeader = ({ label, colKey, sortKey, sortDir, onToggle, align = 'left' }) => {
   const active = sortKey === colKey;
   return (
-    <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
+    <button
+      type="button"
+      onClick={() => onToggle(colKey)}
+      className={`flex items-center gap-1 font-semibold uppercase tracking-wide hover:text-blue-600 ${align === 'right' ? 'w-full justify-end' : ''} ${active ? 'text-blue-600' : ''}`}
+      title={`Ordenar por ${label}`}
+    >
       <span>{label}</span>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className={`inline-flex items-center rounded p-0.5 transition-colors hover:bg-gray-200 ${active ? 'text-blue-600' : 'text-gray-400'}`}
-            title={`Ordenar por ${label}`}
-          >
-            <ChevronDown className="h-3.5 w-3.5" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-44">
-          <DropdownMenuItem onSelect={() => onSort(colKey, 'asc')} className={active && sortDir === 'asc' ? 'font-semibold text-blue-600' : ''}>
-            Ascendente ↑
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onSort(colKey, 'desc')} className={active && sortDir === 'desc' ? 'font-semibold text-blue-600' : ''}>
-            Descendente ↓
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+      <span className="text-[10px] leading-none">{active ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}</span>
+    </button>
   );
 };
 
@@ -180,6 +167,11 @@ const ClienteCotizacionesTabla = ({
     setSeleccion(todasSeleccionadas ? [] : elegibles.map((c) => c.id));
 
   const onSort = (key, dir) => { setSortKey(key); setSortDir(dir); };
+  // Clic en encabezado: si ya es la columna activa, alterna dirección; si no, la activa.
+  const onToggle = (key) => {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
+  };
 
   // Proyectos a entregar (uno por cotización seleccionada elegible).
   // Memoizado en [cotizaciones, seleccion] para mantener identidad estable y no
@@ -370,19 +362,19 @@ const ClienteCotizacionesTabla = ({
                 )}
               </th>
               <th className="text-left py-2 px-2 font-semibold">
-                <SortHeader label="Folio" colKey="folio" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortHeader label="Folio" colKey="folio" sortKey={sortKey} sortDir={sortDir} onToggle={onToggle} />
               </th>
               <th className="text-left py-2 px-2 font-semibold">
-                <SortHeader label="Descripción" colKey="descripcion" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortHeader label="Descripción" colKey="descripcion" sortKey={sortKey} sortDir={sortDir} onToggle={onToggle} />
               </th>
               <th className="text-left py-2 px-2 font-semibold">
-                <SortHeader label="Fecha" colKey="fecha" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortHeader label="Fecha" colKey="fecha" sortKey={sortKey} sortDir={sortDir} onToggle={onToggle} />
               </th>
               <th className="text-right py-2 px-2 font-semibold">
-                <SortHeader label="Total" colKey="total" sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="right" />
+                <SortHeader label="Total" colKey="total" sortKey={sortKey} sortDir={sortDir} onToggle={onToggle} align="right" />
               </th>
               <th className="text-left py-2 px-2 font-semibold">
-                <SortHeader label="Proyecto" colKey="proyecto" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortHeader label="Proyecto" colKey="proyecto" sortKey={sortKey} sortDir={sortDir} onToggle={onToggle} />
               </th>
               <th className="text-left py-2 px-2 font-semibold">
                 <EstatusSortHeader sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
