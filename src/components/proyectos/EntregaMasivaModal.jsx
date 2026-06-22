@@ -10,7 +10,7 @@ import { uploadEntregaImage } from '@/lib/entregaUpload';
 import { notifyProjectFinishedOrDelivered } from '@/services/TelegramService';
 import { mapEntregaItemRow } from '@/components/EntregaModal';
 import SignaturePad from '@/components/proyectos/SignaturePad';
-import { Loader2, Camera } from 'lucide-react';
+import { Loader2, Camera, X } from 'lucide-react';
 
 const sanitizeFilename = (f) => f.replace(/[^a-zA-Z0-9-_.]/g, '_');
 
@@ -94,8 +94,8 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
   const [porProyecto, setPorProyecto] = useState({}); // { [proyectoId]: { rows, loading, tipo, cantidades } }
   const [recibe, setRecibe] = useState('');
   const [comentarios, setComentarios] = useState('');
-  const [fotoFile, setFotoFile] = useState(null);
-  const [fotoPreview, setFotoPreview] = useState(null);
+  const [fotoFiles, setFotoFiles] = useState([]);       // File[]
+  const [fotoPreviews, setFotoPreviews] = useState([]); // { id, url }[]
   const [saving, setSaving] = useState(false);
   const sigApiRef = useRef(null);
   const fotoInputRef = useRef(null);
@@ -113,8 +113,8 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
     const init = {};
     proyectos.forEach((p) => { init[p.id] = { rows: [], loading: true, tipo: 'completa', cantidades: {} }; });
     setPorProyecto(init);
-    setRecibe(''); setComentarios(''); setFotoFile(null);
-    setFotoPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+    setRecibe(''); setComentarios(''); setFotoFiles([]);
+    setFotoPreviews((prev) => { prev.forEach((p) => URL.revokeObjectURL(p.url)); return []; });
 
     (async () => {
       for (const p of proyectos) {
@@ -137,11 +137,27 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
   const setCantidades = useCallback((pid, updater) =>
     setPorProyecto((prev) => ({ ...prev, [pid]: { ...prev[pid], cantidades: typeof updater === 'function' ? updater(prev[pid].cantidades) : updater } })), []);
 
+  // Permite tomar foto (cámara) o elegir de la galería, una o varias a la vez.
+  // Se acumulan: cada selección se agrega a las ya cargadas.
   const onFoto = (e) => {
-    const f = e.target.files?.[0];
-    if (!f || !f.type.startsWith('image/')) return;
-    setFotoPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(f); });
-    setFotoFile(f);
+    const files = Array.from(e.target.files || []).filter((f) => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+    setFotoFiles((prev) => [...prev, ...files]);
+    setFotoPreviews((prev) => [
+      ...prev,
+      ...files.map((f, i) => ({ id: `${f.name}-${f.size}-${Date.now()}-${i}`, url: URL.createObjectURL(f) })),
+    ]);
+    // limpiar el input para poder volver a seleccionar el mismo archivo
+    if (fotoInputRef.current) fotoInputRef.current.value = '';
+  };
+
+  const removeFoto = (idx) => {
+    setFotoPreviews((prev) => {
+      const p = prev[idx];
+      if (p) URL.revokeObjectURL(p.url);
+      return prev.filter((_, i) => i !== idx);
+    });
+    setFotoFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleSave = async () => {
@@ -165,8 +181,8 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
       toast({ variant: 'destructive', title: 'Cantidades', description: 'Ningún proyecto tiene cantidades a entregar.' });
       return;
     }
-    if (!fotoFile) {
-      toast({ variant: 'destructive', title: 'Foto requerida', description: 'Agrega una foto de la entrega.' });
+    if (fotoFiles.length === 0) {
+      toast({ variant: 'destructive', title: 'Foto requerida', description: 'Agrega al menos una foto de la entrega.' });
       return;
     }
     const sig = sigApiRef.current;
@@ -177,9 +193,16 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
 
     setSaving(true);
     try {
-      // Subir foto y firma UNA sola vez (carpeta del primer proyecto)
+      // Subir foto(s) y firma UNA sola vez (carpeta del primer proyecto)
       const refId = proyectosPayload[0].proyecto_id;
-      const fotoUrl = await uploadEntregaImage(fotoFile, refId, sanitizeFilename);
+      const fotoUrls = [];
+      for (const f of fotoFiles) {
+        const url = await uploadEntregaImage(f, refId, sanitizeFilename);
+        if (url) fotoUrls.push(url);
+      }
+      if (fotoUrls.length === 0) throw new Error('No se pudieron subir las fotos.');
+      // 1 foto → URL simple (retrocompatible); varias → JSON de URLs en el mismo campo.
+      const fotoUrl = fotoUrls.length === 1 ? fotoUrls[0] : JSON.stringify(fotoUrls);
 
       const dataUrl = sig.toDataURL();
       if (!dataUrl) throw new Error('No se pudo leer la firma.');
@@ -259,12 +282,29 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
                 className="min-h-[60px] w-full rounded-md border px-3 py-2 text-sm" placeholder="Opcional" />
             </div>
             <div className="space-y-1 md:col-span-2">
-              <Label htmlFor="foto-masiva">Foto de entrega *</Label>
+              <Label htmlFor="foto-masiva">Fotos de entrega * {fotoFiles.length > 0 ? `(${fotoFiles.length})` : ''}</Label>
               <label htmlFor="foto-masiva" className="flex min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-teal-200 bg-teal-50/30 px-4 py-3 text-sm font-medium text-teal-900">
-                <Camera className="h-5 w-5" /> Tomar o elegir foto
-                <input id="foto-masiva" ref={fotoInputRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={onFoto} />
+                <Camera className="h-5 w-5" /> Tomar o elegir foto(s)
+                <input id="foto-masiva" ref={fotoInputRef} type="file" accept="image/*" multiple className="sr-only" onChange={onFoto} />
               </label>
-              {fotoPreview && <img src={fotoPreview} alt="Vista previa" className="mt-2 max-h-40 w-full max-w-xs rounded-lg border object-cover" />}
+              <p className="text-[11px] text-gray-500">Puedes usar la cámara o elegir varias de la galería.</p>
+              {fotoPreviews.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {fotoPreviews.map((p, idx) => (
+                    <div key={p.id} className="relative">
+                      <img src={p.url} alt={`Evidencia ${idx + 1}`} className="h-20 w-20 rounded-lg border object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeFoto(idx)}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow"
+                        aria-label={`Quitar foto ${idx + 1}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="space-y-1 md:col-span-2">
               <Label>Firma de recibido *</Label>

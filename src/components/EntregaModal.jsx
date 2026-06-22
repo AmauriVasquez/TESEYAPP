@@ -503,7 +503,6 @@ function EntregaMobileFlow({
                 ref={entregaFotoInputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 className="sr-only"
                 onChange={onEntregaFotoChange}
               />
@@ -1125,7 +1124,6 @@ export default function EntregaModal({
                         ref={entregaFotoInputRef}
                         type="file"
                         accept="image/*"
-                        capture="environment"
                         className="sr-only"
                         onChange={handleEntregaFotoChange}
                       />

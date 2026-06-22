@@ -7,6 +7,23 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 
+// `foto_url` puede ser una URL simple (entregas antiguas / 1 foto) o un JSON con
+// varias URLs (entregas masivas con múltiple evidencia). Devuelve siempre un array.
+const parseFotoUrls = (val) => {
+  if (!val) return [];
+  if (Array.isArray(val)) return val.filter(Boolean);
+  const s = String(val).trim();
+  if (s.startsWith('[')) {
+    try {
+      const arr = JSON.parse(s);
+      return Array.isArray(arr) ? arr.filter(Boolean) : [s];
+    } catch {
+      return [s];
+    }
+  }
+  return [s];
+};
+
 /**
  * Historial de entregas (`entregas` + `entregas_items`) por proyecto.
  * Dependencia estable: proyectoId + reloadNonce.
@@ -192,18 +209,28 @@ export default function EntregaHistorial({
                         <span className="ml-1 font-medium text-red-600"> · No suman al pendiente</span>
                       ) : null}
                     </p>
-                    {row.foto_url ? (
-                      <div className="mt-2">
-                        <p className="mb-1 text-xs font-semibold text-gray-700">Foto de entrega</p>
-                        <a href={row.foto_url} target="_blank" rel="noopener noreferrer" className="inline-block max-w-full">
-                          <img
-                            src={row.foto_url}
-                            alt="Evidencia de entrega"
-                            className="max-h-40 w-full max-w-xs rounded-lg border object-cover"
-                          />
-                        </a>
-                      </div>
-                    ) : null}
+                    {(() => {
+                      const fotos = parseFotoUrls(row.foto_url);
+                      if (fotos.length === 0) return null;
+                      return (
+                        <div className="mt-2">
+                          <p className="mb-1 text-xs font-semibold text-gray-700">
+                            {fotos.length > 1 ? `Fotos de entrega (${fotos.length})` : 'Foto de entrega'}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {fotos.map((url, idx) => (
+                              <a key={`${url}-${idx}`} href={url} target="_blank" rel="noopener noreferrer" className="inline-block">
+                                <img
+                                  src={url}
+                                  alt={`Evidencia de entrega ${idx + 1}`}
+                                  className="max-h-40 w-32 rounded-lg border object-cover"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {row.firma_url ? (
                       <a href={row.firma_url} target="_blank" rel="noopener noreferrer" className="inline-block mt-1">
                         <img src={row.firma_url} alt="Firma" className="max-h-24 border rounded bg-white" />
