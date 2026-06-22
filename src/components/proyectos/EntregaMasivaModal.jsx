@@ -10,7 +10,7 @@ import { uploadEntregaImage } from '@/lib/entregaUpload';
 import { notifyProjectFinishedOrDelivered } from '@/services/TelegramService';
 import { mapEntregaItemRow } from '@/components/EntregaModal';
 import SignaturePad from '@/components/proyectos/SignaturePad';
-import { Loader2, Camera, X } from 'lucide-react';
+import { Loader2, Camera, X, Images } from 'lucide-react';
 
 const sanitizeFilename = (f) => f.replace(/[^a-zA-Z0-9-_.]/g, '_');
 
@@ -98,7 +98,6 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
   const [fotoPreviews, setFotoPreviews] = useState([]); // { id, url }[]
   const [saving, setSaving] = useState(false);
   const sigApiRef = useRef(null);
-  const fotoInputRef = useRef(null);
 
   // Clave estable de la selección (ids de proyecto). Evita que un re-render del
   // padre que recrea el array `proyectos` reinicie el formulario: al tomar la foto,
@@ -148,7 +147,7 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
       ...files.map((f, i) => ({ id: `${f.name}-${f.size}-${Date.now()}-${i}`, url: URL.createObjectURL(f) })),
     ]);
     // limpiar el input para poder volver a seleccionar el mismo archivo
-    if (fotoInputRef.current) fotoInputRef.current.value = '';
+    e.target.value = '';
   };
 
   const removeFoto = (idx) => {
@@ -282,12 +281,18 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
                 className="min-h-[60px] w-full rounded-md border px-3 py-2 text-sm" placeholder="Opcional" />
             </div>
             <div className="space-y-1 md:col-span-2">
-              <Label htmlFor="foto-masiva">Fotos de entrega * {fotoFiles.length > 0 ? `(${fotoFiles.length})` : ''}</Label>
-              <label htmlFor="foto-masiva" className="flex min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-teal-200 bg-teal-50/30 px-4 py-3 text-sm font-medium text-teal-900">
-                <Camera className="h-5 w-5" /> Tomar o elegir foto(s)
-                <input id="foto-masiva" ref={fotoInputRef} type="file" accept="image/*" multiple className="sr-only" onChange={onFoto} />
-              </label>
-              <p className="text-[11px] text-gray-500">Puedes usar la cámara o elegir varias de la galería.</p>
+              <Label>Fotos de entrega * {fotoFiles.length > 0 ? `(${fotoFiles.length})` : ''}</Label>
+              <div className="flex gap-2">
+                <label htmlFor="foto-camara" className="flex flex-1 min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-teal-200 bg-teal-50/30 px-3 py-3 text-sm font-medium text-teal-900">
+                  <Camera className="h-5 w-5" /> Tomar foto
+                  <input id="foto-camara" type="file" accept="image/*" capture="environment" className="sr-only" onChange={onFoto} />
+                </label>
+                <label htmlFor="foto-galeria" className="flex flex-1 min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-blue-200 bg-blue-50/30 px-3 py-3 text-sm font-medium text-blue-900">
+                  <Images className="h-5 w-5" /> Galería
+                  <input id="foto-galeria" type="file" accept="image/*" multiple className="sr-only" onChange={onFoto} />
+                </label>
+              </div>
+              <p className="text-[11px] text-gray-500">Toma una foto con la cámara o elige una o varias de la galería.</p>
               {fotoPreviews.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {fotoPreviews.map((p, idx) => (

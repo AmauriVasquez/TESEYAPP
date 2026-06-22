@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
 import { notifyProjectFinishedOrDelivered } from '@/services/TelegramService';
-import { Loader2, ChevronLeft, Package, Layers, Camera } from 'lucide-react';
+import { Loader2, ChevronLeft, Package, Layers, Camera, Images } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { uploadEntregaImage } from '@/lib/entregaUpload';
 import SignaturePad from '@/components/proyectos/SignaturePad';
@@ -492,21 +492,38 @@ function EntregaMobileFlow({
             <p className="text-sm text-gray-500">
               Evidencia de la mercancía en sitio (obligatoria). No sustituye la bitácora del proyecto.
             </p>
-            <label
-              htmlFor="entrega-foto-mob"
-              className="flex min-h-[52px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-teal-200 bg-teal-50/40 px-4 py-4 text-base font-semibold text-teal-900 active:bg-teal-50"
-            >
-              <Camera className="h-6 w-6 shrink-0" />
-              Tomar o elegir foto
-              <input
-                id="entrega-foto-mob"
-                ref={entregaFotoInputRef}
-                type="file"
-                accept="image/*"
-                className="sr-only"
-                onChange={onEntregaFotoChange}
-              />
-            </label>
+            <div className="flex w-full gap-2">
+              <label
+                htmlFor="entrega-foto-mob-cam"
+                className="flex flex-1 min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-teal-200 bg-teal-50/40 px-3 py-4 text-base font-semibold text-teal-900 active:bg-teal-50"
+              >
+                <Camera className="h-6 w-6 shrink-0" />
+                Tomar foto
+                <input
+                  id="entrega-foto-mob-cam"
+                  ref={entregaFotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={onEntregaFotoChange}
+                />
+              </label>
+              <label
+                htmlFor="entrega-foto-mob-gal"
+                className="flex flex-1 min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/40 px-3 py-4 text-base font-semibold text-blue-900 active:bg-blue-50"
+              >
+                <Images className="h-6 w-6 shrink-0" />
+                Galería
+                <input
+                  id="entrega-foto-mob-gal"
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={onEntregaFotoChange}
+                />
+              </label>
+            </div>
             {entregaFotoPreview ? (
               <div className="mt-2 w-full overflow-hidden rounded-lg border bg-white">
                 <img
@@ -1113,21 +1130,38 @@ export default function EntregaModal({
                     <p className="text-xs text-gray-500">
                       Evidencia en sitio (obligatoria). Es independiente de la bitácora del proyecto.
                     </p>
-                    <label
-                      htmlFor="entrega-foto-desk"
-                      className="flex min-h-[48px] w-full max-w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-teal-200 bg-teal-50/30 px-4 py-3 text-sm font-medium text-teal-900"
-                    >
-                      <Camera className="h-5 w-5 shrink-0" />
-                      Tomar o elegir foto
-                      <input
-                        id="entrega-foto-desk"
-                        ref={entregaFotoInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="sr-only"
-                        onChange={handleEntregaFotoChange}
-                      />
-                    </label>
+                    <div className="flex w-full max-w-full gap-2">
+                      <label
+                        htmlFor="entrega-foto-desk-cam"
+                        className="flex flex-1 min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-teal-200 bg-teal-50/30 px-3 py-3 text-sm font-medium text-teal-900"
+                      >
+                        <Camera className="h-5 w-5 shrink-0" />
+                        Tomar foto
+                        <input
+                          id="entrega-foto-desk-cam"
+                          ref={entregaFotoInputRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="sr-only"
+                          onChange={handleEntregaFotoChange}
+                        />
+                      </label>
+                      <label
+                        htmlFor="entrega-foto-desk-gal"
+                        className="flex flex-1 min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-blue-200 bg-blue-50/30 px-3 py-3 text-sm font-medium text-blue-900"
+                      >
+                        <Images className="h-5 w-5 shrink-0" />
+                        Galería
+                        <input
+                          id="entrega-foto-desk-gal"
+                          type="file"
+                          accept="image/*"
+                          className="sr-only"
+                          onChange={handleEntregaFotoChange}
+                        />
+                      </label>
+                    </div>
                     {entregaFotoPreview ? (
                       <div className="mt-2 w-full overflow-hidden rounded-lg border">
                         <img
