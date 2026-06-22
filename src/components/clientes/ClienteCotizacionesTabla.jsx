@@ -1,6 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { Loader2, PackageCheck } from 'lucide-react';
+import { Loader2, PackageCheck, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import EntregaMasivaModal from '@/components/proyectos/EntregaMasivaModal';
 
 const ESTATUS_COT_BADGE = {
@@ -76,6 +82,74 @@ const EstatusStack = ({ cot, onNavigatePagos }) => {
   );
 };
 
+// Encabezado de columna con menú desplegable de orden (estilo página de Cotizaciones).
+const SortHeader = ({ label, colKey, sortKey, sortDir, onSort, align = 'left' }) => {
+  const active = sortKey === colKey;
+  return (
+    <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
+      <span>{label}</span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={`inline-flex items-center rounded p-0.5 transition-colors hover:bg-gray-200 ${active ? 'text-blue-600' : 'text-gray-400'}`}
+            title={`Ordenar por ${label}`}
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-44">
+          <DropdownMenuItem onSelect={() => onSort(colKey, 'asc')} className={active && sortDir === 'asc' ? 'font-semibold text-blue-600' : ''}>
+            Ascendente ↑
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onSort(colKey, 'desc')} className={active && sortDir === 'desc' ? 'font-semibold text-blue-600' : ''}>
+            Descendente ↓
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+};
+
+// Encabezado de Estatus: permite ordenar por cualquiera de los tres estatus.
+const EstatusSortHeader = ({ sortKey, sortDir, onSort }) => {
+  const dims = [
+    { key: 'estatus', label: 'Cotización' },
+    { key: 'proyecto_estatus', label: 'Proyecto' },
+    { key: 'pago_estatus', label: 'Pago' },
+  ];
+  const active = dims.some((d) => d.key === sortKey);
+  return (
+    <div className="flex items-center gap-1">
+      <span>Estatus</span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={`inline-flex items-center rounded p-0.5 transition-colors hover:bg-gray-200 ${active ? 'text-blue-600' : 'text-gray-400'}`}
+            title="Ordenar por estatus"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-52">
+          {dims.map((d) => (
+            <React.Fragment key={d.key}>
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase text-gray-400">{d.label}</div>
+              <DropdownMenuItem onSelect={() => onSort(d.key, 'asc')} className={sortKey === d.key && sortDir === 'asc' ? 'font-semibold text-blue-600' : ''}>
+                Ascendente ↑
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onSort(d.key, 'desc')} className={sortKey === d.key && sortDir === 'desc' ? 'font-semibold text-blue-600' : ''}>
+                Descendente ↓
+              </DropdownMenuItem>
+            </React.Fragment>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+};
+
 const ClienteCotizacionesTabla = ({
   cotizaciones = [],
   loading = false,
@@ -104,6 +178,8 @@ const ClienteCotizacionesTabla = ({
 
   const toggleTodas = () =>
     setSeleccion(todasSeleccionadas ? [] : elegibles.map((c) => c.id));
+
+  const onSort = (key, dir) => { setSortKey(key); setSortDir(dir); };
 
   // Proyectos a entregar (uno por cotización seleccionada elegible).
   // Memoizado en [cotizaciones, seleccion] para mantener identidad estable y no
@@ -195,8 +271,8 @@ const ClienteCotizacionesTabla = ({
         </div>
       )}
 
-      {/* Controles de orden (no filtran: nunca ocultan filas) */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      {/* MÓVIL — control de orden (en web el orden se elige desde los encabezados) */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 sm:hidden">
         <span className="text-xs font-medium text-gray-500">Ordenar por:</span>
         <select
           value={sortKey}
@@ -293,12 +369,24 @@ const ClienteCotizacionesTabla = ({
                   />
                 )}
               </th>
-              <th className="text-left py-2 px-2 font-semibold">Folio</th>
-              <th className="text-left py-2 px-2 font-semibold">Descripción</th>
-              <th className="text-left py-2 px-2 font-semibold">Fecha</th>
-              <th className="text-right py-2 px-2 font-semibold">Total</th>
-              <th className="text-left py-2 px-2 font-semibold">Proyecto</th>
-              <th className="text-left py-2 px-2 font-semibold">Estatus</th>
+              <th className="text-left py-2 px-2 font-semibold">
+                <SortHeader label="Folio" colKey="folio" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              </th>
+              <th className="text-left py-2 px-2 font-semibold">
+                <SortHeader label="Descripción" colKey="descripcion" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              </th>
+              <th className="text-left py-2 px-2 font-semibold">
+                <SortHeader label="Fecha" colKey="fecha" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              </th>
+              <th className="text-right py-2 px-2 font-semibold">
+                <SortHeader label="Total" colKey="total" sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="right" />
+              </th>
+              <th className="text-left py-2 px-2 font-semibold">
+                <SortHeader label="Proyecto" colKey="proyecto" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              </th>
+              <th className="text-left py-2 px-2 font-semibold">
+                <EstatusSortHeader sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              </th>
             </tr>
           </thead>
           <tbody>
