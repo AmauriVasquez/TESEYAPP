@@ -82,6 +82,9 @@ const ClienteCotizacionesTabla = ({
 }) => {
   const [masivaOpen, setMasivaOpen] = useState(false);
   const [seleccion, setSeleccion] = useState([]); // ids de cotización seleccionados
+  const [sortKey, setSortKey] = useState('fecha');   // folio|descripcion|fecha|total|proyecto|estatus
+  const [sortDir, setSortDir] = useState('desc');    // asc|desc
+  const [filtroEstatus, setFiltroEstatus] = useState(''); // '' | 'cot:Aprobada' | 'proy:Entregado' | 'pago:Pendiente'
 
   const elegibles = cotizaciones.filter(esEntregable);
   const seleccionElegible = seleccion.filter((id) =>
@@ -113,6 +116,42 @@ const ClienteCotizacionesTabla = ({
         })),
     [cotizaciones, seleccion]
   );
+
+  // Filas a mostrar: filtradas por estatus y ordenadas. La selección de entrega
+  // sigue operando sobre TODAS las cotizaciones; el filtro solo afecta la vista.
+  const visibles = useMemo(() => {
+    let rows = cotizaciones;
+    if (filtroEstatus) {
+      const sep = filtroEstatus.indexOf(':');
+      const dim = filtroEstatus.slice(0, sep);
+      const fval = filtroEstatus.slice(sep + 1);
+      rows = rows.filter((c) => {
+        if (dim === 'cot') return c.estatus === fval;
+        if (dim === 'proy') return c.proyecto_estatus === fval;
+        if (dim === 'pago') return c.estatus === 'Aprobada' && c.pago_estatus === fval;
+        return true;
+      });
+    }
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const valor = (c) => {
+      switch (sortKey) {
+        case 'folio': return c.folio || '';
+        case 'descripcion': return c.descripcion || '';
+        case 'fecha': return c.fecha ? new Date(c.fecha).getTime() : 0;
+        case 'total': return Number(c.total) || 0;
+        case 'proyecto': return c.proyecto_folio || '';
+        case 'estatus': return c.estatus || '';
+        default: return '';
+      }
+    };
+    const numerico = sortKey === 'fecha' || sortKey === 'total';
+    return [...rows].sort((a, b) => {
+      const va = valor(a);
+      const vb = valor(b);
+      if (numerico) return (va - vb) * dir;
+      return String(va).localeCompare(String(vb), 'es', { sensitivity: 'base' }) * dir;
+    });
+  }, [cotizaciones, filtroEstatus, sortKey, sortDir]);
 
   if (loading) {
     return (
@@ -163,9 +202,69 @@ const ClienteCotizacionesTabla = ({
         </div>
       )}
 
+      {/* Controles: ordenar + filtrar por estatus */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-gray-500">Ordenar:</span>
+        <select
+          value={sortKey}
+          onChange={(e) => setSortKey(e.target.value)}
+          className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm"
+        >
+          <option value="fecha">Fecha</option>
+          <option value="folio">Folio</option>
+          <option value="total">Total</option>
+          <option value="descripcion">Descripción</option>
+          <option value="proyecto">Proyecto</option>
+          <option value="estatus">Estatus cotización</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+          className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm hover:bg-gray-50"
+          title={sortDir === 'asc' ? 'Ascendente' : 'Descendente'}
+        >
+          {sortDir === 'asc' ? '↑' : '↓'}
+        </button>
+
+        <span className="ml-2 text-xs font-medium text-gray-500">Estatus:</span>
+        <select
+          value={filtroEstatus}
+          onChange={(e) => setFiltroEstatus(e.target.value)}
+          className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm"
+        >
+          <option value="">Todos</option>
+          <optgroup label="Cotización">
+            <option value="cot:Aprobada">Aprobada</option>
+            <option value="cot:Borrador">Borrador</option>
+            <option value="cot:Rechazada">Rechazada</option>
+            <option value="cot:Historial">Historial</option>
+          </optgroup>
+          <optgroup label="Proyecto">
+            <option value="proy:Por Iniciar">Por Iniciar</option>
+            <option value="proy:Solicitud de Materiales">Solicitud de Materiales</option>
+            <option value="proy:Terminado">Terminado</option>
+            <option value="proy:Entregado">Entregado</option>
+          </optgroup>
+          <optgroup label="Pago">
+            <option value="pago:Pagado">Pagado</option>
+            <option value="pago:Parcial">Parcial</option>
+            <option value="pago:Pendiente">Pendiente</option>
+          </optgroup>
+        </select>
+        {filtroEstatus && (
+          <button type="button" onClick={() => setFiltroEstatus('')} className="text-xs text-blue-600 hover:underline">
+            Limpiar
+          </button>
+        )}
+      </div>
+
+      {visibles.length === 0 ? (
+        <p className="py-8 text-center text-sm text-gray-500">No hay cotizaciones que coincidan con el filtro.</p>
+      ) : (
+      <>
       {/* MÓVIL — tarjetas apiladas */}
       <div className="space-y-3 sm:hidden">
-        {cotizaciones.map((cot) => {
+        {visibles.map((cot) => {
           const entregable = esEntregable(cot);
           const marcada = seleccion.includes(cot.id);
           return (
@@ -242,7 +341,7 @@ const ClienteCotizacionesTabla = ({
             </tr>
           </thead>
           <tbody>
-            {cotizaciones.map((cot) => {
+            {visibles.map((cot) => {
               const entregable = esEntregable(cot);
               const marcada = seleccion.includes(cot.id);
               return (
@@ -297,6 +396,8 @@ const ClienteCotizacionesTabla = ({
           </tbody>
         </table>
       </div>
+      </>
+      )}
 
       <EntregaMasivaModal
         open={masivaOpen}
