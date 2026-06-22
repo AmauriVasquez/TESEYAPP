@@ -217,14 +217,15 @@ const ClienteCotizacionesTabla = ({
           <option value="proyecto">Proyecto</option>
           <option value="estatus">Estatus cotización</option>
         </select>
-        <button
-          type="button"
-          onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-          className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm hover:bg-gray-50"
-          title={sortDir === 'asc' ? 'Ascendente' : 'Descendente'}
+        <select
+          value={sortDir}
+          onChange={(e) => setSortDir(e.target.value)}
+          className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm"
+          aria-label="Dirección de orden"
         >
-          {sortDir === 'asc' ? '↑' : '↓'}
-        </button>
+          <option value="desc">Descendente ↓</option>
+          <option value="asc">Ascendente ↑</option>
+        </select>
 
         <span className="ml-2 text-xs font-medium text-gray-500">Estatus:</span>
         <select
