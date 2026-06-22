@@ -25,6 +25,11 @@ const PAGO_BADGE = {
   Pendiente: 'bg-red-100 text-red-800',
 };
 
+// Orden lógico (por flujo) para ordenar por estatus de forma significativa.
+const RANK_COT = { Borrador: 0, Enviada: 1, Aprobada: 2, Rechazada: 3, Historial: 4, Obsoleta: 5 };
+const RANK_PROY = { 'Por Iniciar': 0, 'Solicitud de Materiales': 1, Terminado: 2, Entregado: 3 };
+const RANK_PAGO = { Pendiente: 0, Parcial: 1, Pagado: 2 };
+
 const formatDate = (value) => {
   if (!value) return '—';
   return new Date(
@@ -82,9 +87,8 @@ const ClienteCotizacionesTabla = ({
 }) => {
   const [masivaOpen, setMasivaOpen] = useState(false);
   const [seleccion, setSeleccion] = useState([]); // ids de cotización seleccionados
-  const [sortKey, setSortKey] = useState('fecha');   // folio|descripcion|fecha|total|proyecto|estatus
+  const [sortKey, setSortKey] = useState('fecha');   // folio|descripcion|fecha|total|proyecto|estatus|proyecto_estatus|pago_estatus
   const [sortDir, setSortDir] = useState('desc');    // asc|desc
-  const [filtroEstatus, setFiltroEstatus] = useState(''); // '' | 'cot:Aprobada' | 'proy:Entregado' | 'pago:Pendiente'
 
   const elegibles = cotizaciones.filter(esEntregable);
   const seleccionElegible = seleccion.filter((id) =>
@@ -117,21 +121,8 @@ const ClienteCotizacionesTabla = ({
     [cotizaciones, seleccion]
   );
 
-  // Filas a mostrar: filtradas por estatus y ordenadas. La selección de entrega
-  // sigue operando sobre TODAS las cotizaciones; el filtro solo afecta la vista.
+  // Filas a mostrar: SOLO se reordenan (no se filtran: nunca desaparecen filas).
   const visibles = useMemo(() => {
-    let rows = cotizaciones;
-    if (filtroEstatus) {
-      const sep = filtroEstatus.indexOf(':');
-      const dim = filtroEstatus.slice(0, sep);
-      const fval = filtroEstatus.slice(sep + 1);
-      rows = rows.filter((c) => {
-        if (dim === 'cot') return c.estatus === fval;
-        if (dim === 'proy') return c.proyecto_estatus === fval;
-        if (dim === 'pago') return c.estatus === 'Aprobada' && c.pago_estatus === fval;
-        return true;
-      });
-    }
     const dir = sortDir === 'asc' ? 1 : -1;
     const valor = (c) => {
       switch (sortKey) {
@@ -140,18 +131,20 @@ const ClienteCotizacionesTabla = ({
         case 'fecha': return c.fecha ? new Date(c.fecha).getTime() : 0;
         case 'total': return Number(c.total) || 0;
         case 'proyecto': return c.proyecto_folio || '';
-        case 'estatus': return c.estatus || '';
+        case 'estatus': return RANK_COT[c.estatus] ?? 99;
+        case 'proyecto_estatus': return RANK_PROY[c.proyecto_estatus] ?? 99;
+        case 'pago_estatus': return RANK_PAGO[c.pago_estatus] ?? 99;
         default: return '';
       }
     };
-    const numerico = sortKey === 'fecha' || sortKey === 'total';
-    return [...rows].sort((a, b) => {
+    const numerico = ['fecha', 'total', 'estatus', 'proyecto_estatus', 'pago_estatus'].includes(sortKey);
+    return [...cotizaciones].sort((a, b) => {
       const va = valor(a);
       const vb = valor(b);
       if (numerico) return (va - vb) * dir;
       return String(va).localeCompare(String(vb), 'es', { sensitivity: 'base' }) * dir;
     });
-  }, [cotizaciones, filtroEstatus, sortKey, sortDir]);
+  }, [cotizaciones, sortKey, sortDir]);
 
   if (loading) {
     return (
@@ -202,9 +195,9 @@ const ClienteCotizacionesTabla = ({
         </div>
       )}
 
-      {/* Controles: ordenar + filtrar por estatus */}
+      {/* Controles de orden (no filtran: nunca ocultan filas) */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-gray-500">Ordenar:</span>
+        <span className="text-xs font-medium text-gray-500">Ordenar por:</span>
         <select
           value={sortKey}
           onChange={(e) => setSortKey(e.target.value)}
@@ -216,6 +209,8 @@ const ClienteCotizacionesTabla = ({
           <option value="descripcion">Descripción</option>
           <option value="proyecto">Proyecto</option>
           <option value="estatus">Estatus cotización</option>
+          <option value="proyecto_estatus">Estatus proyecto</option>
+          <option value="pago_estatus">Estatus pago</option>
         </select>
         <select
           value={sortDir}
@@ -226,43 +221,8 @@ const ClienteCotizacionesTabla = ({
           <option value="desc">Descendente ↓</option>
           <option value="asc">Ascendente ↑</option>
         </select>
-
-        <span className="ml-2 text-xs font-medium text-gray-500">Estatus:</span>
-        <select
-          value={filtroEstatus}
-          onChange={(e) => setFiltroEstatus(e.target.value)}
-          className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm"
-        >
-          <option value="">Todos</option>
-          <optgroup label="Cotización">
-            <option value="cot:Aprobada">Aprobada</option>
-            <option value="cot:Borrador">Borrador</option>
-            <option value="cot:Rechazada">Rechazada</option>
-            <option value="cot:Historial">Historial</option>
-          </optgroup>
-          <optgroup label="Proyecto">
-            <option value="proy:Por Iniciar">Por Iniciar</option>
-            <option value="proy:Solicitud de Materiales">Solicitud de Materiales</option>
-            <option value="proy:Terminado">Terminado</option>
-            <option value="proy:Entregado">Entregado</option>
-          </optgroup>
-          <optgroup label="Pago">
-            <option value="pago:Pagado">Pagado</option>
-            <option value="pago:Parcial">Parcial</option>
-            <option value="pago:Pendiente">Pendiente</option>
-          </optgroup>
-        </select>
-        {filtroEstatus && (
-          <button type="button" onClick={() => setFiltroEstatus('')} className="text-xs text-blue-600 hover:underline">
-            Limpiar
-          </button>
-        )}
       </div>
 
-      {visibles.length === 0 ? (
-        <p className="py-8 text-center text-sm text-gray-500">No hay cotizaciones que coincidan con el filtro.</p>
-      ) : (
-      <>
       {/* MÓVIL — tarjetas apiladas */}
       <div className="space-y-3 sm:hidden">
         {visibles.map((cot) => {
@@ -397,8 +357,6 @@ const ClienteCotizacionesTabla = ({
           </tbody>
         </table>
       </div>
-      </>
-      )}
 
       <EntregaMasivaModal
         open={masivaOpen}
