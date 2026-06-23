@@ -22,6 +22,7 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DatePicker } from '@/components/ui/date-picker';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { usePermissions } from '@/contexts/PermissionsContext';
+import { CUENTAS_PAGO } from '@/config/cuentasPago';
 
 const CATEGORIAS_GASTO = [
   { value: 'material', label: 'Material' },
@@ -892,11 +893,9 @@ const Finanzas = () => {
               <Select value={ingresoForm.metodoPago} onValueChange={(v) => setIngresoForm((f) => ({ ...f, metodoPago: v }))}>
                 <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Transferencia">Transferencia</SelectItem>
-                  <SelectItem value="Efectivo">Efectivo</SelectItem>
-                  <SelectItem value="Tarjeta de Crédito/Débito">Tarjeta</SelectItem>
-                  <SelectItem value="Cheque">Cheque</SelectItem>
-                  <SelectItem value="Otro">Otro</SelectItem>
+                  {CUENTAS_PAGO.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

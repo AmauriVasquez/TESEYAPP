@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
 import { Switch } from '@/components/ui/switch';
+import { CUENTAS_PAGO } from '@/config/cuentasPago';
 
 const TIPOS_INGRESO = [
   { value: 'Anticipo', label: 'Anticipo' },
@@ -386,11 +387,9 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
                 <Select value={metodoPago} onValueChange={setMetodoPago}>
                   <SelectTrigger className="p-3 h-auto"><SelectValue placeholder="Selecciona un método..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Transferencia">Transferencia</SelectItem>
-                    <SelectItem value="Efectivo">Efectivo</SelectItem>
-                    <SelectItem value="Tarjeta de Crédito/Débito">Tarjeta de Crédito/Débito</SelectItem>
-                    <SelectItem value="Cheque">Cheque</SelectItem>
-                    <SelectItem value="Otro">Otro</SelectItem>
+                    {CUENTAS_PAGO.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
