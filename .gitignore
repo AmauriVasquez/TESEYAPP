@@ -30,3 +30,4 @@ server/.env
 
 # Superpowers / local worktrees
 .claude/worktrees/
+.superpowers/
