@@ -17,7 +17,8 @@ import { Combobox } from '@/components/ui/combobox';
 import { format, parse, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { formatDateTable } from '@/lib/dateUtils';
-import { empresaLabel, marcaLabel } from '@/lib/facturacionDisplay';
+import { empresaLabel, marcaLabel, estatusFactura } from '@/lib/facturacionDisplay';
+import RegistrarFacturaDialog from '@/components/finanzas/RegistrarFacturaDialog';
 import { getCuentaLabel } from '@/config/cuentasPago';
 import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
@@ -181,6 +182,8 @@ const Finanzas = () => {
   );
 
   const [ingresosConProyecto, setIngresosConProyecto] = useState([]);
+  const [filtroFactura, setFiltroFactura] = useState('todas');
+  const [facturaProyecto, setFacturaProyecto] = useState(null);
   const [sortConfigIngresos, setSortConfigIngresos] = useState({ key: 'fecha', direction: 'desc' });
   const [sortConfigGastos, setSortConfigGastos] = useState({ key: 'fecha', direction: 'desc' });
 
@@ -195,41 +198,57 @@ const Finanzas = () => {
       setIngresosConProyecto(list.map((i) => ({ ...i, cliente: '-', proyecto: '-' })));
       return;
     }
-    supabase
-      .from('proyectos')
-      .select('id, folio, descripcion, requiere_cfdi, factura_descartada, cliente:cliente_id(nombre), cliente_nombre_externo, cotizacion:cotizacion_id(branding, marca_comercial)')
-      .in('id', proyectoIds)
-      .then(({ data: proyData }) => {
-        const mapProy = (proyData || []).reduce(
-          (acc, p) => ({
-            ...acc,
-            [p.id]: {
-              nombre: p?.cliente?.nombre ?? p?.cliente_nombre_externo ?? 'Cliente Desconocido',
-              descripcion: p?.descripcion ?? '',
-              folio: p?.folio ?? '',
-              empresa: p?.cotizacion?.branding ?? null,
-              marca: p?.cotizacion?.marca_comercial ?? null,
-              requiere_cfdi: !!p?.requiere_cfdi,
-              factura_descartada: !!p?.factura_descartada,
-            },
-          }),
-          {}
-        );
-        setIngresosConProyecto(
-          list.map((i) => {
-            const p = mapProy[i?.proyecto_id];
-            return {
-              ...i,
-              cliente: p?.nombre ?? '-',
-              proyecto: p ? `${p.folio} – ${p.descripcion}` : '-',
-              empresa: p?.empresa ?? null,
-              marca: p?.marca ?? null,
-              requiere_cfdi: p?.requiere_cfdi ?? false,
-              factura_descartada: p?.factura_descartada ?? false,
-            };
-          })
-        );
-      });
+    let cancelled = false;
+    (async () => {
+      const { data: proyData } = await supabase
+        .from('proyectos')
+        .select('id, folio, descripcion, requiere_cfdi, factura_descartada, cliente:cliente_id(nombre), cliente_nombre_externo, cotizacion:cotizacion_id(branding, marca_comercial)')
+        .in('id', proyectoIds);
+      const mapProy = (proyData || []).reduce(
+        (acc, p) => ({
+          ...acc,
+          [p.id]: {
+            nombre: p?.cliente?.nombre ?? p?.cliente_nombre_externo ?? 'Cliente Desconocido',
+            descripcion: p?.descripcion ?? '',
+            folio: p?.folio ?? '',
+            empresa: p?.cotizacion?.branding ?? null,
+            marca: p?.cotizacion?.marca_comercial ?? null,
+            requiere_cfdi: !!p?.requiere_cfdi,
+            factura_descartada: !!p?.factura_descartada,
+          },
+        }),
+        {}
+      );
+      const pagoIds = list.map((i) => i?.id).filter(Boolean);
+      let facturaPorPago = {};
+      if (pagoIds.length > 0) {
+        const { data: pagosFact } = await supabase
+          .from('proyecto_pagos')
+          .select('id, factura:factura_id(numero)')
+          .in('id', pagoIds);
+        facturaPorPago = (pagosFact || []).reduce((acc, r) => {
+          acc[r.id] = r?.factura?.numero ?? null;
+          return acc;
+        }, {});
+      }
+      if (cancelled) return;
+      setIngresosConProyecto(
+        list.map((i) => {
+          const p = mapProy[i?.proyecto_id];
+          return {
+            ...i,
+            cliente: p?.nombre ?? '-',
+            proyecto: p ? `${p.folio} – ${p.descripcion}` : '-',
+            empresa: p?.empresa ?? null,
+            marca: p?.marca ?? null,
+            requiere_cfdi: p?.requiere_cfdi ?? false,
+            factura_descartada: p?.factura_descartada ?? false,
+            factura_numero: facturaPorPago[i?.id] ?? null,
+          };
+        })
+      );
+    })();
+    return () => { cancelled = true; };
   }, [ingresos]);
 
   const handleSortIngresos = useCallback((key) => {
@@ -262,6 +281,20 @@ const Finanzas = () => {
     });
     return list;
   }, [ingresosConProyecto, sortConfigIngresos]);
+
+  const ingresosFiltrados = useMemo(() => {
+    if (filtroFactura === 'todas') return sortedIngresos;
+    return (sortedIngresos || []).filter((i) => estatusFactura(i).key === filtroFactura);
+  }, [sortedIngresos, filtroFactura]);
+
+  const abrirFactura = useCallback(async (proyectoId) => {
+    const { data } = await supabase
+      .from('proyectos')
+      .select('id, folio, descripcion, cotizacion:cotizacion_id(branding)')
+      .eq('id', proyectoId)
+      .single();
+    setFacturaProyecto(data || null);
+  }, []);
 
   const sortedGastos = useMemo(() => {
     const list = [...(gastos || [])];
@@ -558,10 +591,21 @@ const Finanzas = () => {
                 <TabsTrigger value="gastos">Gastos del Periodo</TabsTrigger>
               </TabsList>
               <TabsContent value="ingresos" className="space-y-2 mt-2">
+                <div className="flex gap-2 flex-wrap text-xs pb-1">
+                  {[['todas', 'Todas'], ['pendiente', 'Pendientes'], ['facturado', 'Facturadas'], ['descartado', 'No se facturará'], ['sin_iva', 'Sin IVA']].map(([k, l]) => (
+                    <button
+                      key={k}
+                      onClick={() => setFiltroFactura(k)}
+                      className={cn('px-3 py-1 rounded-full border transition-colors', filtroFactura === k ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-muted/50')}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
                 <div className="sm:hidden space-y-2">
-                  {sortedIngresos.length === 0 ? (
+                  {ingresosFiltrados.length === 0 ? (
                     <p className="text-center py-6 text-gray-500">No hay ingresos en el periodo.</p>
-                  ) : sortedIngresos.map((i, idx) => (
+                  ) : ingresosFiltrados.map((i, idx) => (
                     <div key={i?.id ?? `ingm-${idx}`} className="rounded-lg border p-3 bg-white">
                       <div className="flex justify-between">
                         <span className="text-sm font-medium">{i.cliente}</span>
@@ -570,6 +614,19 @@ const Finanzas = () => {
                       <p className="text-xs text-gray-500">{i.proyecto}</p>
                       <p className="text-xs mt-1">{empresaLabel(i.empresa)} · {marcaLabel(i.marca)} · {getCuentaLabel(i.cuenta_value || i.metodo_pago)}</p>
                       <p className="text-xs text-gray-400">{formatDateTable(i.fecha || i.fecha_pago)}</p>
+                      {(() => {
+                        const e = estatusFactura(i);
+                        const toneCls = { green: 'bg-green-100 text-green-800', amber: 'bg-amber-100 text-amber-800', gray: 'bg-gray-100 text-gray-600', muted: 'text-gray-400' }[e.tone];
+                        const clickable = e.key === 'pendiente';
+                        return (
+                          <span
+                            className={cn('inline-block mt-1 px-2 py-0.5 rounded-full text-xs', toneCls)}
+                            onClick={clickable ? () => abrirFactura(i.proyecto_id) : undefined}
+                          >
+                            {e.label}{clickable ? ' ▸' : ''}
+                          </span>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -620,15 +677,16 @@ const Finanzas = () => {
                             {sortConfigIngresos.key === 'monto' && (sortConfigIngresos.direction === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />)}
                           </span>
                         </TableHead>
+                        <TableHead className="text-center">Factura</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sortedIngresos.length === 0 ? (
+                      {ingresosFiltrados.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center py-6 text-gray-500">No hay ingresos en el periodo.</TableCell>
+                          <TableCell colSpan={8} className="text-center py-6 text-gray-500">No hay ingresos en el periodo.</TableCell>
                         </TableRow>
                       ) : (
-                        sortedIngresos.map((i, idx) => (
+                        ingresosFiltrados.map((i, idx) => (
                           <TableRow key={i?.id ?? `ing-${idx}`}>
                             <TableCell className="whitespace-nowrap">{formatDateTable(i.fecha || i.fecha_pago)}</TableCell>
                             <TableCell>{i.cliente}</TableCell>
@@ -637,6 +695,21 @@ const Finanzas = () => {
                             <TableCell>{marcaLabel(i.marca)}</TableCell>
                             <TableCell className="whitespace-nowrap">{getCuentaLabel(i.cuenta_value || i.metodo_pago)}</TableCell>
                             <TableCell className="text-right font-medium text-green-700">${Number(i.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-center">
+                              {(() => {
+                                const e = estatusFactura(i);
+                                const toneCls = { green: 'bg-green-100 text-green-800', amber: 'bg-amber-100 text-amber-800 cursor-pointer', gray: 'bg-gray-100 text-gray-600', muted: 'text-gray-400' }[e.tone];
+                                const clickable = e.key === 'pendiente';
+                                return (
+                                  <span
+                                    className={cn('px-2 py-0.5 rounded-full text-xs', toneCls)}
+                                    onClick={clickable ? () => abrirFactura(i.proyecto_id) : undefined}
+                                  >
+                                    {e.label}{clickable ? ' ▸' : ''}
+                                  </span>
+                                );
+                              })()}
+                            </TableCell>
                           </TableRow>
                         ))
                       )}
@@ -963,6 +1036,13 @@ const Finanzas = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <RegistrarFacturaDialog
+        open={!!facturaProyecto}
+        onOpenChange={(o) => { if (!o) setFacturaProyecto(null); }}
+        proyecto={facturaProyecto}
+        onSaved={() => { setFacturaProyecto(null); fetchDatos(); }}
+      />
     </>
   );
 };
