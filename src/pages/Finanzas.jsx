@@ -616,7 +616,7 @@ const Finanzas = () => {
                       <p className="text-xs text-gray-400">{formatDateTable(i.fecha || i.fecha_pago)}</p>
                       {(() => {
                         const e = estatusFactura(i);
-                        const toneCls = { green: 'bg-green-100 text-green-800', amber: 'bg-amber-100 text-amber-800', gray: 'bg-gray-100 text-gray-600', muted: 'text-gray-400' }[e.tone];
+                        const toneCls = { green: 'bg-green-100 text-green-800', amber: 'bg-amber-100 text-amber-800 cursor-pointer', gray: 'bg-gray-100 text-gray-600', muted: 'text-gray-400' }[e.tone];
                         const clickable = e.key === 'pendiente';
                         return (
                           <span

@@ -91,7 +91,7 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
     if (pagoEditar) {
       setMonto(String(pagoEditar.monto ?? ''));
       setFechaPago(pagoEditar.fecha_pago ? parseISO(pagoEditar.fecha_pago) : null);
-      setMetodoPago(pagoEditar.metodo_pago ?? '');
+      setMetodoPago(pagoEditar.cuenta_value ?? pagoEditar.metodo_pago ?? '');
       const coment = pagoEditar.comentarios ?? '';
       setComentarios(coment);
       if (coment.includes('Anticipo por Partida:')) setTipoIngreso('Anticipo por Partida');

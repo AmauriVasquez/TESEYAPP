@@ -1092,7 +1092,7 @@ const ProyectoDetalle = () => {
                         <p className="font-bold text-lg text-red-800">${saldoPendiente.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
                     </div>
                 </div>
-                <div className="flex justify-end mb-4">
+                <div className="flex justify-end mb-4 gap-2">
                     <Button size="sm" className="gap-2" onClick={() => { setPagoEnEdicion(null); setAddPagoDialogOpen(true); }}><DollarSign className="w-4 h-4"/> Registrar Pago</Button>
                     {proyecto?.requiere_cfdi && (
                       <Button size="sm" variant="outline" className="gap-2" onClick={() => setFacturaDialogOpen(true)}><FileText className="w-4 h-4"/> Registrar Factura</Button>

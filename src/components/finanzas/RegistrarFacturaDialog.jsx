@@ -42,6 +42,14 @@ export default function RegistrarFacturaDialog({ open, onOpenChange, proyecto, o
       toast({ variant: 'destructive', title: 'Faltan datos', description: 'Número de factura y fecha son obligatorios.' });
       return;
     }
+    if (alcance === 'proyecto' && cobros.length === 0) {
+      toast({ variant: 'destructive', title: 'Sin cobros por facturar', description: 'Este proyecto no tiene cobros pendientes de factura para ligar.' });
+      return;
+    }
+    if (alcance === 'ingreso' && !cobroId) {
+      toast({ variant: 'destructive', title: 'Elige un ingreso', description: 'Selecciona el cobro a facturar.' });
+      return;
+    }
     const cobroIds = alcance === 'ingreso' && cobroId ? [Number(cobroId)] : cobros.map((c) => c.id);
     setSaving(true);
     const { error } = await registrarFactura({
