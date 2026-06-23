@@ -18,6 +18,7 @@ import EntregaModal, { mapEntregaItemRow } from '@/components/EntregaModal';
 import EntregaHistorial from '@/components/EntregaHistorial';
 import { useEntregaItems } from '@/hooks/useEntregaItems';
 import RegistrarPagoDialog from '@/components/proyectos/RegistrarPagoDialog';
+import RegistrarFacturaDialog from '@/components/finanzas/RegistrarFacturaDialog';
 import AsignarResponsableDialog from '@/components/proyectos/AsignarResponsableDialog';
 import ProjectDatesModal from '@/components/proyectos/ProjectDatesModal';
 import ComprobanteIngreso from '@/components/finanzas/ComprobanteIngreso';
@@ -122,6 +123,7 @@ const ProyectoDetalle = () => {
   const [addAprobacionDialogOpen, setAddAprobacionDialogOpen] = useState(false);
   const [addEntregaDialogOpen, setAddEntregaDialogOpen] = useState(false);
   const [addPagoDialogOpen, setAddPagoDialogOpen] = useState(false);
+  const [facturaDialogOpen, setFacturaDialogOpen] = useState(false);
   const [pagoEnEdicion, setPagoEnEdicion] = useState(null);
 
   // Deep-link al control financiero: navegar con state.scrollToPagos hace scroll
@@ -179,7 +181,7 @@ const ProyectoDetalle = () => {
   const fetchProyectoData = useCallback(async (isUpdate = false) => {
     if(!isUpdate) setLoading(true);
     try {
-        const { data: proyectoData, error: proyectoError } = await supabase.from('proyectos').select('*, cliente:cliente_id(nombre), responsable:responsable_id(nombre_completo), cotizacion:cotizacion_id(total)').eq('id', id).single();
+        const { data: proyectoData, error: proyectoError } = await supabase.from('proyectos').select('*, cliente:cliente_id(nombre), responsable:responsable_id(nombre_completo), cotizacion:cotizacion_id(total, branding)').eq('id', id).single();
         if (proyectoError) throw proyectoError;
 
         const { data: bitacoraRawData, error: bitacoraError } = await supabase.from('proyecto_bitacora').select('*').eq('proyecto_id', id).order('created_at', { ascending: false });
@@ -1092,6 +1094,9 @@ const ProyectoDetalle = () => {
                 </div>
                 <div className="flex justify-end mb-4">
                     <Button size="sm" className="gap-2" onClick={() => { setPagoEnEdicion(null); setAddPagoDialogOpen(true); }}><DollarSign className="w-4 h-4"/> Registrar Pago</Button>
+                    {proyecto?.requiere_cfdi && (
+                      <Button size="sm" variant="outline" className="gap-2" onClick={() => setFacturaDialogOpen(true)}><FileText className="w-4 h-4"/> Registrar Factura</Button>
+                    )}
                 </div>
                 <Tabs defaultValue="ingresos" className="space-y-2">
                     <TabsList>
@@ -1254,6 +1259,14 @@ const ProyectoDetalle = () => {
         }}
       />
       {proyecto && <RegistrarPagoDialog open={addPagoDialogOpen} onOpenChange={(open) => { setAddPagoDialogOpen(open); if (!open) setPagoEnEdicion(null); }} proyectoId={proyecto.id} proyecto={proyecto} pago={pagoEnEdicion} onSave={() => { fetchProyectoData(true); setAddPagoDialogOpen(false); setPagoEnEdicion(null); }} />}
+      {proyecto && (
+        <RegistrarFacturaDialog
+          open={facturaDialogOpen}
+          onOpenChange={setFacturaDialogOpen}
+          proyecto={proyecto}
+          onSaved={() => { setFacturaDialogOpen(false); fetchProyectoData(true); }}
+        />
+      )}
       <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
