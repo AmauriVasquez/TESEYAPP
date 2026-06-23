@@ -24,7 +24,7 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DatePicker } from '@/components/ui/date-picker';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { CUENTAS_PAGO } from '@/config/cuentasPago';
+import { CUENTAS_PAGO, validarCobro } from '@/config/cuentasPago';
 
 const CATEGORIAS_GASTO = [
   { value: 'material', label: 'Material' },
@@ -118,6 +118,19 @@ const Finanzas = () => {
     [gastos]
   );
   const balance = useMemo(() => Number(totalIngresos) - Number(totalGastos), [totalIngresos, totalGastos]);
+
+  const proyectoMovSeleccionado = useMemo(
+    () => proyectosOptions.find((o) => o.value === selectedProyectoId)?.raw ?? null,
+    [proyectosOptions, selectedProyectoId]
+  );
+  const avisoMovimiento = useMemo(
+    () => validarCobro({
+      requiereCfdi: !!proyectoMovSeleccionado?.requiere_cfdi,
+      cuentaValue: ingresoForm.metodoPago,
+      branding: proyectoMovSeleccionado?.cotizacion?.branding ?? null,
+    }),
+    [proyectoMovSeleccionado, ingresoForm.metodoPago]
+  );
 
   /** Cuentas por cobrar: solo proyectos activos/entregados con saldo > $1. Matemática: Saldo = Costo Total - Suma pagos. */
   const cuentasPorCobrar = useMemo(() => {
@@ -339,10 +352,10 @@ const Finanzas = () => {
     setIngresoForm({ monto: '', fecha: format(new Date(), 'yyyy-MM-dd'), metodoPago: '', comentarios: '' });
     supabase
       .from('proyectos')
-      .select('id, folio, descripcion')
+      .select('id, folio, descripcion, requiere_cfdi, cotizacion:cotizacion_id(branding)')
       .order('id', { ascending: false })
       .then(({ data }) => {
-        setProyectosOptions((data || []).map((p) => ({ value: String(p.id), label: `${p.folio} – ${p.descripcion}` })));
+        setProyectosOptions((data || []).map((p) => ({ value: String(p.id), label: `${p.folio} – ${p.descripcion}`, raw: p })));
       });
   };
 
@@ -930,6 +943,11 @@ const Finanzas = () => {
                   ))}
                 </SelectContent>
               </Select>
+              {avisoMovimiento.mensaje && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                  ⚠️ {avisoMovimiento.mensaje}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Comentarios (opcional)</Label>

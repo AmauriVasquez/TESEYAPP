@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
 import { Switch } from '@/components/ui/switch';
-import { CUENTAS_PAGO } from '@/config/cuentasPago';
+import { CUENTAS_PAGO, validarCobro } from '@/config/cuentasPago';
 
 const TIPOS_INGRESO = [
   { value: 'Anticipo', label: 'Anticipo' },
@@ -66,6 +66,15 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
     const ivaCambiado = tieneCotizacion && cotizacionIva && aplicaIva !== aplicaIvaOriginal;
     return clienteCambiado || ivaCambiado;
   }, [clienteId, clienteIdOriginal, aplicaIva, aplicaIvaOriginal, tieneCotizacion, cotizacionIva]);
+
+  const avisoCobro = useMemo(
+    () => validarCobro({
+      requiereCfdi: tieneCotizacion ? aplicaIva : !!proyecto?.requiere_cfdi,
+      cuentaValue: metodoPago,
+      branding: cotizacionIva?.branding ?? proyecto?.branding ?? null,
+    }),
+    [aplicaIva, metodoPago, tieneCotizacion, proyecto, cotizacionIva]
+  );
 
   // FASE 2: Subtotal y total en tiempo real (cálculo inverso seguro)
   const { subtotal, ivaCalculado, nuevoTotal } = useMemo(() => {
@@ -108,7 +117,7 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
     (async () => {
       const { data, error } = await supabase
         .from('cotizaciones')
-        .select('id, total, aplica_iva')
+        .select('id, total, aplica_iva, branding')
         .eq('id', proyecto.cotizacion_id)
         .single();
       if (cancelled) return;
@@ -118,7 +127,7 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
         return;
       }
       const aplica = data.aplica_iva !== false;
-      setCotizacionIva({ total: Number(data.total || 0), aplica_iva: aplica });
+      setCotizacionIva({ total: Number(data.total || 0), aplica_iva: aplica, branding: data.branding ?? null });
       setAplicaIva(aplica);
     })();
     return () => { cancelled = true; };
@@ -394,6 +403,11 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
                     ))}
                   </SelectContent>
                 </Select>
+                {avisoCobro.mensaje && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                    ⚠️ {avisoCobro.mensaje}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="ref-comentarios">Referencia / Comentarios</Label>
