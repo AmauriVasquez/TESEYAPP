@@ -245,6 +245,7 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
           monto: parseFloat(monto),
           fecha_pago: format(fechaPago, 'yyyy-MM-dd'),
           metodo_pago: metodoPago,
+          cuenta_value: metodoPago,
           comentarios: buildComentarios(),
         };
         if (cfdiUrl != null) payload.url_cfdi = cfdiUrl;
@@ -257,6 +258,7 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
           monto: parseFloat(monto),
           fecha_pago: format(fechaPago, 'yyyy-MM-dd'),
           metodo_pago: metodoPago,
+          cuenta_value: metodoPago,
           comentarios: buildComentarios(),
           url_cfdi: cfdiUrl ?? null,
         });

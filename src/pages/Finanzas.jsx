@@ -348,6 +348,7 @@ const Finanzas = () => {
         monto: parseFloat(ingresoForm.monto),
         fecha_pago: ingresoForm.fecha,
         metodo_pago: ingresoForm.metodoPago,
+        cuenta_value: ingresoForm.metodoPago,
         comentarios: ingresoForm.comentarios || null,
       });
       if (error) throw error;

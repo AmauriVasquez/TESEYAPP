@@ -239,6 +239,7 @@ const Cotizaciones = () => {
       cliente_id: cotizacionAprobada.cliente_id,
       cliente_nombre_externo: cotizacionAprobada.cliente_nombre_externo ?? null,
       descripcion: cotizacionAprobada.descripcion,
+      requiere_cfdi: cotizacionAprobada.aplica_iva !== false,
     };
     if (cotizacionAprobada.total != null) payload.costo_total = Number(cotizacionAprobada.total);
     return payload;
