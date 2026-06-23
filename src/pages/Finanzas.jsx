@@ -17,6 +17,8 @@ import { Combobox } from '@/components/ui/combobox';
 import { format, parse, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { formatDateTable } from '@/lib/dateUtils';
+import { empresaLabel, marcaLabel } from '@/lib/facturacionDisplay';
+import { getCuentaLabel } from '@/config/cuentasPago';
 import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -182,7 +184,7 @@ const Finanzas = () => {
     }
     supabase
       .from('proyectos')
-      .select('id, folio, descripcion, cliente:cliente_id(nombre), cliente_nombre_externo')
+      .select('id, folio, descripcion, requiere_cfdi, factura_descartada, cliente:cliente_id(nombre), cliente_nombre_externo, cotizacion:cotizacion_id(branding, marca_comercial)')
       .in('id', proyectoIds)
       .then(({ data: proyData }) => {
         const mapProy = (proyData || []).reduce(
@@ -192,6 +194,10 @@ const Finanzas = () => {
               nombre: p?.cliente?.nombre ?? p?.cliente_nombre_externo ?? 'Cliente Desconocido',
               descripcion: p?.descripcion ?? '',
               folio: p?.folio ?? '',
+              empresa: p?.cotizacion?.branding ?? null,
+              marca: p?.cotizacion?.marca_comercial ?? null,
+              requiere_cfdi: !!p?.requiere_cfdi,
+              factura_descartada: !!p?.factura_descartada,
             },
           }),
           {}
@@ -203,6 +209,10 @@ const Finanzas = () => {
               ...i,
               cliente: p?.nombre ?? '-',
               proyecto: p ? `${p.folio} – ${p.descripcion}` : '-',
+              empresa: p?.empresa ?? null,
+              marca: p?.marca ?? null,
+              requiere_cfdi: p?.requiere_cfdi ?? false,
+              factura_descartada: p?.factura_descartada ?? false,
             };
           })
         );
@@ -535,7 +545,22 @@ const Finanzas = () => {
                 <TabsTrigger value="gastos">Gastos del Periodo</TabsTrigger>
               </TabsList>
               <TabsContent value="ingresos" className="space-y-2 mt-2">
-                <div className="w-full max-h-[500px] 2xl:max-h-[700px] overflow-y-auto overflow-x-auto border-b rounded-b-lg shadow-inner bg-white">
+                <div className="sm:hidden space-y-2">
+                  {sortedIngresos.length === 0 ? (
+                    <p className="text-center py-6 text-gray-500">No hay ingresos en el periodo.</p>
+                  ) : sortedIngresos.map((i, idx) => (
+                    <div key={i?.id ?? `ingm-${idx}`} className="rounded-lg border p-3 bg-white">
+                      <div className="flex justify-between">
+                        <span className="text-sm font-medium">{i.cliente}</span>
+                        <span className="text-sm font-semibold text-green-700">${Number(i.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">{i.proyecto}</p>
+                      <p className="text-xs mt-1">{empresaLabel(i.empresa)} · {marcaLabel(i.marca)} · {getCuentaLabel(i.cuenta_value || i.metodo_pago)}</p>
+                      <p className="text-xs text-gray-400">{formatDateTable(i.fecha || i.fecha_pago)}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden sm:block w-full max-h-[500px] 2xl:max-h-[700px] overflow-y-auto overflow-x-auto border-b rounded-b-lg shadow-inner bg-white">
                   <Table>
                     <TableHeader className="sticky top-0 z-10 bg-white shadow-sm [&_tr]:border-b [&_th]:bg-white [&_th]:py-3 [&_th]:shadow-[0_1px_0_0_#e5e7eb]">
                       <TableRow>
@@ -569,6 +594,9 @@ const Finanzas = () => {
                             {sortConfigIngresos.key === 'proyecto' && (sortConfigIngresos.direction === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />)}
                           </span>
                         </TableHead>
+                        <TableHead>Empresa</TableHead>
+                        <TableHead>Marca</TableHead>
+                        <TableHead>Método</TableHead>
                         <TableHead
                           className="text-right cursor-pointer hover:bg-muted/50 transition-colors select-none"
                           onClick={() => handleSortIngresos('monto')}
@@ -584,7 +612,7 @@ const Finanzas = () => {
                     <TableBody>
                       {sortedIngresos.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center py-6 text-gray-500">No hay ingresos en el periodo.</TableCell>
+                          <TableCell colSpan={7} className="text-center py-6 text-gray-500">No hay ingresos en el periodo.</TableCell>
                         </TableRow>
                       ) : (
                         sortedIngresos.map((i, idx) => (
@@ -592,6 +620,9 @@ const Finanzas = () => {
                             <TableCell className="whitespace-nowrap">{formatDateTable(i.fecha || i.fecha_pago)}</TableCell>
                             <TableCell>{i.cliente}</TableCell>
                             <TableCell className="max-w-[200px] truncate">{i.proyecto}</TableCell>
+                            <TableCell>{empresaLabel(i.empresa)}</TableCell>
+                            <TableCell>{marcaLabel(i.marca)}</TableCell>
+                            <TableCell className="whitespace-nowrap">{getCuentaLabel(i.cuenta_value || i.metodo_pago)}</TableCell>
                             <TableCell className="text-right font-medium text-green-700">${Number(i.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
                           </TableRow>
                         ))
