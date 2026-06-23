@@ -32,15 +32,14 @@
 
 ```js
 // src/config/cuentasPago.js
-// Cuentas de pago (placeholders — el USUARIO los reemplaza con sus cuentas reales).
+// Cuentas de pago reales del negocio (provistas por el usuario, 2026-06-23).
 // La facturabilidad y la entidad viven SOLO aquí; nunca se guardan como etiqueta.
+// entidad: 'tesey' | 'ipe' | 'ambas' | null  ('ambas' = sirve a cualquier entidad).
 export const CUENTAS_PAGO = [
-  { value: 'efectivo',        label: 'Efectivo',               entidad: null,    facturable: true  },
-  { value: 'cuenta_a',        label: 'BBVA Tesey ··1234',      entidad: 'tesey', facturable: true  },
-  { value: 'cuenta_b',        label: 'Santander IPE ··5678',   entidad: 'ipe',   facturable: true  },
-  { value: 'cuenta_personal', label: 'Cuenta personal ··9012', entidad: null,    facturable: false },
-  { value: 'tpv_a',           label: 'TPV Tesey ··3456',       entidad: 'tesey', facturable: true  },
-  { value: 'tpv_personal',    label: 'TPV personal ··7890',    entidad: null,    facturable: false },
+  { value: 'bbva_7340',      label: 'BBVA ··7340',      entidad: 'ipe',   facturable: true  },
+  { value: 'santander_1971', label: 'SANTANDER ··1971', entidad: 'tesey', facturable: true  },
+  { value: 'banregio_0017',  label: 'BANREGIO ··0017',  entidad: 'ambas', facturable: false },
+  { value: 'efectivo',       label: 'Efectivo',         entidad: 'ambas', facturable: true  },
 ];
 
 // Valores históricos en texto libre (solo para mostrar/migrar; facturable: null = desconocido).
@@ -78,13 +77,15 @@ export function validarCobro({ requiereCfdi, cuentaValue, branding }) {
   if (!cuenta) return { nivel: 'ok', mensaje: null };
   const entidadEsperada = brandingToEntidad(branding);
 
+  const entidadEspecifica = cuenta.entidad && cuenta.entidad !== 'ambas';
+
   if (requiereCfdi && cuenta.facturable === false) {
     return { nivel: 'aviso', mensaje: 'Este cobro entró a una cuenta que no factura; no podrás emitir CFDI desde aquí.' };
   }
-  if (requiereCfdi && cuenta.entidad && entidadEsperada && cuenta.entidad !== entidadEsperada) {
+  if (requiereCfdi && entidadEspecifica && entidadEsperada && cuenta.entidad !== entidadEsperada) {
     return { nivel: 'aviso', mensaje: 'La cuenta es de otra entidad que la empresa emisora.' };
   }
-  if (!requiereCfdi && cuenta.facturable === true && cuenta.entidad) {
+  if (!requiereCfdi && cuenta.facturable === true && entidadEspecifica) {
     return { nivel: 'aviso', mensaje: 'Depósito en cuenta facturable de un trabajo marcado sin factura.' };
   }
   return { nivel: 'ok', mensaje: null };
