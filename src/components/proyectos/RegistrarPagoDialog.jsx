@@ -49,6 +49,8 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
   const [isDeleting, setIsDeleting] = useState(false);
   const [cotizacionIva, setCotizacionIva] = useState(null);
   const [pagadoActual, setPagadoActual] = useState(0);
+  // Toggle "requiere factura"
+  const [requiereCfdiLocal, setRequiereCfdiLocal] = useState(false);
   // Sección "Ya facturado"
   const [yaFacturado, setYaFacturado] = useState(false);
   const [facturaNumero, setFacturaNumero] = useState('');
@@ -58,6 +60,7 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
 
   const isEditMode = Boolean(pagoEditar?.id);
   const tieneCotizacion = Boolean(proyecto?.cotizacion_id);
+  const requiereCfdiOriginal = !!proyecto?.requiere_cfdi;
   const branding = cotizacionIva?.branding ?? proyecto?.branding ?? null;
   const aplicaIva = cotizacionIva?.aplica_iva ?? false; // solo lectura: del proyecto/cotización
 
@@ -108,6 +111,7 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
     setYaFacturado(false);
     setFacturaNumero('');
     setFacturaFecha(format(new Date(), 'yyyy-MM-dd'));
+    setRequiereCfdiLocal(!!proyecto?.requiere_cfdi);
   }, [open, pagoEditar]);
 
   useEffect(() => {
@@ -119,12 +123,12 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
     (async () => {
       const { data, error } = await supabase
         .from('cotizaciones')
-        .select('id, total, aplica_iva, branding')
+        .select('id, total, aplica_iva, branding, folio')
         .eq('id', proyecto.cotizacion_id)
         .single();
       if (cancelled) return;
       if (error || !data) { setCotizacionIva(null); return; }
-      setCotizacionIva({ total: Number(data.total || 0), aplica_iva: data.aplica_iva !== false, branding: data.branding ?? null });
+      setCotizacionIva({ total: Number(data.total || 0), aplica_iva: data.aplica_iva !== false, branding: data.branding ?? null, folio: data.folio ?? null });
     })();
     return () => { cancelled = true; };
   }, [open, proyecto?.cotizacion_id]);
@@ -272,6 +276,10 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
         } else {
           toast({ title: '✅ Pago Registrado' });
         }
+      }
+      // Persist requiere_cfdi toggle if changed
+      if (proyecto?.id && requiereCfdiLocal !== requiereCfdiOriginal) {
+        await supabase.from('proyectos').update({ requiere_cfdi: requiereCfdiLocal }).eq('id', proyecto.id);
       }
       onSave();
       onOpenChange(false);
@@ -432,6 +440,25 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
                 <p className="text-xs text-gray-500">Cuenta receptora</p>
                 <p className="font-medium capitalize">{cuentaEntidad ? (cuentaEntidad === 'ipe' ? 'IIHEMSA Peninsular' : cuentaEntidad === 'tesey' ? 'Tesey' : cuentaEntidad) : (metodoPago ? 'Indistinta' : '—')}</p>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-gray-500">Cliente</p>
+                <p className="font-medium">{proyecto?.cliente?.nombre ?? proyecto?.cliente_nombre_externo ?? '—'}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-gray-500">Cotización</p>
+                <p className="font-medium font-mono text-sm">{cotizacionIva?.folio ?? (proyecto?.cotizacion_folio ?? '—')}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="req-cfdi" className="text-base">El cliente requiere factura</Label>
+                <p className="text-xs text-muted-foreground">No cambia el precio; solo marca que lleva CFDI</p>
+              </div>
+              <Switch id="req-cfdi" checked={requiereCfdiLocal} onCheckedChange={setRequiereCfdiLocal} />
             </div>
 
             {/* Barra de progreso de pago */}
