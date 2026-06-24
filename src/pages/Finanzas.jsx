@@ -19,6 +19,7 @@ import { es } from 'date-fns/locale';
 import { formatDateTable } from '@/lib/dateUtils';
 import { empresaLabel, marcaLabel, estatusFactura, desglosePago } from '@/lib/facturacionDisplay';
 import RegistrarFacturaDialog from '@/components/finanzas/RegistrarFacturaDialog';
+import RegistrarPagoDialog from '@/components/proyectos/RegistrarPagoDialog';
 import CotizacionPreviewDialog from '@/components/finanzas/CotizacionPreviewDialog';
 import { getCuentaLabel } from '@/config/cuentasPago';
 import { useProyectosPathPrefix } from '@/hooks/useProyectosPathPrefix';
@@ -28,7 +29,6 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DatePicker } from '@/components/ui/date-picker';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { usePermissions } from '@/contexts/PermissionsContext';
-import { CUENTAS_PAGO, validarCobro } from '@/config/cuentasPago';
 
 const CATEGORIAS_GASTO = [
   { value: 'material', label: 'Material' },
@@ -49,11 +49,10 @@ const Finanzas = () => {
     to: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
   }));
   const [gastoDialogOpen, setGastoDialogOpen] = useState(false);
-  const [movimientoDialogOpen, setMovimientoDialogOpen] = useState(false);
   const [proyectosOptions, setProyectosOptions] = useState([]);
-  const [selectedProyectoId, setSelectedProyectoId] = useState('');
-  const [ingresoForm, setIngresoForm] = useState({ monto: '', fecha: format(new Date(), 'yyyy-MM-dd'), metodoPago: '', comentarios: '' });
-  const [savingIngreso, setSavingIngreso] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pagoProyecto, setPagoProyecto] = useState(null);
+  const [pagoDialogOpen, setPagoDialogOpen] = useState(false);
   const [chartData, setChartData] = useState([]);
   const [loadingCharts, setLoadingCharts] = useState(true);
   const [proyectosParaCuentas, setProyectosParaCuentas] = useState([]);
@@ -122,19 +121,6 @@ const Finanzas = () => {
     [gastos]
   );
   const balance = useMemo(() => Number(totalIngresos) - Number(totalGastos), [totalIngresos, totalGastos]);
-
-  const proyectoMovSeleccionado = useMemo(
-    () => proyectosOptions.find((o) => o.value === selectedProyectoId)?.raw ?? null,
-    [proyectosOptions, selectedProyectoId]
-  );
-  const avisoMovimiento = useMemo(
-    () => validarCobro({
-      requiereCfdi: !!proyectoMovSeleccionado?.requiere_cfdi,
-      cuentaValue: ingresoForm.metodoPago,
-      branding: proyectoMovSeleccionado?.cotizacion?.branding ?? null,
-    }),
-    [proyectoMovSeleccionado, ingresoForm.metodoPago]
-  );
 
   /** Cuentas por cobrar: solo proyectos activos/entregados con saldo > $1. Matemática: Saldo = Costo Total - Suma pagos. */
   const cuentasPorCobrar = useMemo(() => {
@@ -398,46 +384,27 @@ const Finanzas = () => {
   }, [fetchChartData]);
 
   const handleOpenMovimiento = () => {
-    setMovimientoDialogOpen(true);
-    setSelectedProyectoId('');
-    setIngresoForm({ monto: '', fecha: format(new Date(), 'yyyy-MM-dd'), metodoPago: '', comentarios: '' });
+    setPickerOpen(true);
     supabase
       .from('proyectos')
-      .select('id, folio, descripcion, requiere_cfdi, cotizacion:cotizacion_id(branding)')
+      .select('id, folio, descripcion')
       .order('id', { ascending: false })
       .then(({ data }) => {
-        setProyectosOptions((data || []).map((p) => ({ value: String(p.id), label: `${p.folio} – ${p.descripcion}`, raw: p })));
+        setProyectosOptions((data || []).map((p) => ({ value: String(p.id), label: `${p.folio} – ${p.descripcion}` })));
       });
   };
 
-  const handleRegistrarIngreso = async () => {
-    if (!selectedProyectoId || !ingresoForm.monto || !ingresoForm.fecha || !ingresoForm.metodoPago) {
-      toast({ variant: 'destructive', title: 'Campos requeridos', description: 'Proyecto, monto, fecha y método de pago son obligatorios.' });
-      return;
-    }
-    setSavingIngreso(true);
-    try {
-      const { error } = await supabase.from('proyecto_pagos').insert({
-        proyecto_id: parseInt(selectedProyectoId, 10),
-        monto: parseFloat(ingresoForm.monto),
-        fecha_pago: ingresoForm.fecha,
-        metodo_pago: ingresoForm.metodoPago,
-        cuenta_value: ingresoForm.metodoPago,
-        comentarios: ingresoForm.comentarios || null,
-      });
-      if (error) throw error;
-      toast({ title: '✅ Ingreso registrado' });
-      setMovimientoDialogOpen(false);
-      setSelectedProyectoId('');
-      setIngresoForm({ monto: '', fecha: format(new Date(), 'yyyy-MM-dd'), metodoPago: '', comentarios: '' });
-      fetchDatos();
-      fetchChartData();
-      fetchDatosCuentasPorCobrar();
-    } catch (e) {
-      toast({ variant: 'destructive', title: 'Error', description: e.message });
-    } finally {
-      setSavingIngreso(false);
-    }
+  const handlePickProyecto = async (value) => {
+    if (!value) return;
+    const { data } = await supabase
+      .from('proyectos')
+      .select('id, folio, descripcion, costo_total, cotizacion_id, requiere_cfdi, cliente_id')
+      .eq('id', parseInt(value, 10))
+      .single();
+    if (!data) { toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cargar el proyecto.' }); return; }
+    setPagoProyecto(data);
+    setPickerOpen(false);
+    setPagoDialogOpen(true);
   };
 
   /** Una sola carga: proyectos con cotización + todos los pagos. Cálculo pesado en useMemo. */
@@ -1015,54 +982,25 @@ const Finanzas = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={movimientoDialogOpen} onOpenChange={setMovimientoDialogOpen}>
-        <DialogContent className="w-[100vw] max-w-md overflow-y-auto max-h-[90vh] sm:w-full">
-          <DialogHeader><DialogTitle>Registrar Movimiento (Ingreso)</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Proyecto *</Label>
-              <Combobox options={proyectosOptions} value={selectedProyectoId} onChange={setSelectedProyectoId} placeholder="Buscar proyecto..." searchPlaceholder="Buscar por folio o descripción..." notFoundMessage="Ningún proyecto encontrado." />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Monto *</Label>
-                <Input type="number" step="0.01" value={ingresoForm.monto} onChange={(e) => setIngresoForm((f) => ({ ...f, monto: e.target.value }))} placeholder="0.00" />
-              </div>
-              <div className="space-y-2">
-                <Label>Fecha *</Label>
-                <DatePicker value={ingresoForm.fecha} onChange={(fecha) => setIngresoForm((f) => ({ ...f, fecha }))} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Método de pago *</Label>
-              <Select value={ingresoForm.metodoPago} onValueChange={(v) => setIngresoForm((f) => ({ ...f, metodoPago: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
-                <SelectContent>
-                  {CUENTAS_PAGO.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {avisoMovimiento.mensaje && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                  ⚠️ {avisoMovimiento.mensaje}
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Comentarios (opcional)</Label>
-              <textarea className="w-full border rounded-lg px-3 py-2 text-sm" rows={2} value={ingresoForm.comentarios} onChange={(e) => setIngresoForm((f) => ({ ...f, comentarios: e.target.value }))} placeholder="Ej. Anticipo 50%" />
-            </div>
-            <DialogFooter>
-              <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-              <Button onClick={handleRegistrarIngreso} disabled={savingIngreso}>
-                {savingIngreso && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Guardar Ingreso
-              </Button>
-            </DialogFooter>
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="w-[100vw] max-w-md sm:w-full">
+          <DialogHeader><DialogTitle>Registrar Movimiento — elige proyecto</DialogTitle></DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label>Proyecto *</Label>
+            <Combobox options={proyectosOptions} value="" onChange={handlePickProyecto} placeholder="Buscar proyecto..." searchPlaceholder="Buscar por folio o descripción..." notFoundMessage="Ningún proyecto encontrado." />
           </div>
         </DialogContent>
       </Dialog>
+
+      {pagoProyecto && (
+        <RegistrarPagoDialog
+          open={pagoDialogOpen}
+          onOpenChange={(o) => { setPagoDialogOpen(o); if (!o) setPagoProyecto(null); }}
+          proyectoId={pagoProyecto.id}
+          proyecto={pagoProyecto}
+          onSave={() => { fetchDatos(); fetchChartData(); fetchDatosCuentasPorCobrar(); setPagoDialogOpen(false); setPagoProyecto(null); }}
+        />
+      )}
 
       <RegistrarFacturaDialog
         open={!!facturaProyecto}
