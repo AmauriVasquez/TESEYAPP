@@ -17,9 +17,12 @@ import { Combobox } from '@/components/ui/combobox';
 import { format, parse, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { formatDateTable } from '@/lib/dateUtils';
-import { empresaLabel, marcaLabel, estatusFactura } from '@/lib/facturacionDisplay';
+import { empresaLabel, marcaLabel, estatusFactura, desglosePago } from '@/lib/facturacionDisplay';
 import RegistrarFacturaDialog from '@/components/finanzas/RegistrarFacturaDialog';
+import CotizacionPreviewDialog from '@/components/finanzas/CotizacionPreviewDialog';
 import { getCuentaLabel } from '@/config/cuentasPago';
+import { useProyectosPathPrefix } from '@/hooks/useProyectosPathPrefix';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -181,6 +184,9 @@ const Finanzas = () => {
     [cuentasPorCobrar]
   );
 
+  const navigate = useNavigate();
+  const proyectosBase = useProyectosPathPrefix();
+  const [previewCotId, setPreviewCotId] = useState(null);
   const [ingresosConProyecto, setIngresosConProyecto] = useState([]);
   const [filtroFactura, setFiltroFactura] = useState('todas');
   const [facturaProyecto, setFacturaProyecto] = useState(null);
@@ -202,7 +208,7 @@ const Finanzas = () => {
     (async () => {
       const { data: proyData } = await supabase
         .from('proyectos')
-        .select('id, folio, descripcion, requiere_cfdi, factura_descartada, cliente:cliente_id(nombre), cliente_nombre_externo, cotizacion:cotizacion_id(branding, marca_comercial)')
+        .select('id, folio, descripcion, requiere_cfdi, factura_descartada, cliente:cliente_id(nombre), cliente_nombre_externo, cotizacion_id, cotizacion:cotizacion_id(branding, marca_comercial, aplica_iva)')
         .in('id', proyectoIds);
       const mapProy = (proyData || []).reduce(
         (acc, p) => ({
@@ -215,10 +221,17 @@ const Finanzas = () => {
             marca: p?.cotizacion?.marca_comercial ?? null,
             requiere_cfdi: !!p?.requiere_cfdi,
             factura_descartada: !!p?.factura_descartada,
+            aplica_iva: p?.cotizacion?.aplica_iva !== false,
+            cotizacion_id: p?.cotizacion_id ?? null,
           },
         }),
         {}
       );
+      const { data: progreso } = await supabase
+        .from('v_proyecto_pago_progreso')
+        .select('proyecto_id, costo_total, pct_pagado')
+        .in('proyecto_id', proyectoIds);
+      const progPorProy = (progreso || []).reduce((a, r) => { a[r.proyecto_id] = r; return a; }, {});
       const pagoIds = list.map((i) => i?.id).filter(Boolean);
       let facturaPorPago = {};
       if (pagoIds.length > 0) {
@@ -244,6 +257,11 @@ const Finanzas = () => {
             requiere_cfdi: p?.requiere_cfdi ?? false,
             factura_descartada: p?.factura_descartada ?? false,
             factura_numero: facturaPorPago[i?.id] ?? null,
+            aplica_iva: p?.aplica_iva ?? true,
+            cotizacion_id: p?.cotizacion_id ?? null,
+            proyecto_folio: p?.folio ?? '',
+            pct_pagado: progPorProy[i.proyecto_id]?.pct_pagado ?? 0,
+            costo_total_proyecto: progPorProy[i.proyecto_id]?.costo_total ?? 0,
           };
         })
       );
@@ -605,15 +623,19 @@ const Finanzas = () => {
                 <div className="sm:hidden space-y-2">
                   {ingresosFiltrados.length === 0 ? (
                     <p className="text-center py-6 text-gray-500">No hay ingresos en el periodo.</p>
-                  ) : ingresosFiltrados.map((i, idx) => (
+                  ) : ingresosFiltrados.map((i, idx) => {
+                    const dg = desglosePago(i.monto, i.aplica_iva);
+                    return (
                     <div key={i?.id ?? `ingm-${idx}`} className="rounded-lg border p-3 bg-white">
                       <div className="flex justify-between">
                         <span className="text-sm font-medium">{i.cliente}</span>
-                        <span className="text-sm font-semibold text-green-700">${Number(i.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-sm font-semibold text-green-700">${dg.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
                       </div>
-                      <p className="text-xs text-gray-500">{i.proyecto}</p>
-                      <p className="text-xs mt-1">{empresaLabel(i.empresa)} · {marcaLabel(i.marca)} · {getCuentaLabel(i.cuenta_value || i.metodo_pago)}</p>
-                      <p className="text-xs text-gray-400">{formatDateTable(i.fecha || i.fecha_pago)}</p>
+                      <p className="text-xs text-gray-500">
+                        {i.proyecto_folio ? <button className="text-blue-600 hover:underline" onClick={() => navigate(`${proyectosBase}/${i.proyecto_id}`)}>{i.proyecto_folio}</button> : '—'}
+                        {' · '}{empresaLabel(i.empresa)} · {getCuentaLabel(i.cuenta_value || i.metodo_pago)}
+                      </p>
+                      <p className="text-xs text-gray-400">{formatDateTable(i.fecha || i.fecha_pago)} · {Math.round(i.pct_pagado ?? 0)}% pagado</p>
                       {(() => {
                         const e = estatusFactura(i);
                         const toneCls = { green: 'bg-green-100 text-green-800', amber: 'bg-amber-100 text-amber-800 cursor-pointer', gray: 'bg-gray-100 text-gray-600', muted: 'text-gray-400' }[e.tone];
@@ -628,7 +650,8 @@ const Finanzas = () => {
                         );
                       })()}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="hidden sm:block w-full max-h-[500px] 2xl:max-h-[700px] overflow-y-auto overflow-x-auto border-b rounded-b-lg shadow-inner bg-white">
                   <Table>
@@ -644,6 +667,8 @@ const Finanzas = () => {
                             {sortConfigIngresos.key === 'fecha' && (sortConfigIngresos.direction === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />)}
                           </span>
                         </TableHead>
+                        <TableHead>Empresa</TableHead>
+                        <TableHead>Marca</TableHead>
                         <TableHead
                           className="cursor-pointer hover:bg-muted/50 transition-colors select-none"
                           onClick={() => handleSortIngresos('cliente')}
@@ -654,47 +679,45 @@ const Finanzas = () => {
                             {sortConfigIngresos.key === 'cliente' && (sortConfigIngresos.direction === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />)}
                           </span>
                         </TableHead>
-                        <TableHead
-                          className="cursor-pointer hover:bg-muted/50 transition-colors select-none"
-                          onClick={() => handleSortIngresos('proyecto')}
-                        >
-                          <span className="inline-flex items-center gap-1">
-                            Proyecto
-                            {sortConfigIngresos.key !== 'proyecto' && <ArrowUpDown className="text-muted-foreground w-4 h-4" />}
-                            {sortConfigIngresos.key === 'proyecto' && (sortConfigIngresos.direction === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />)}
-                          </span>
-                        </TableHead>
-                        <TableHead>Empresa</TableHead>
-                        <TableHead>Marca</TableHead>
+                        <TableHead>Cotización</TableHead>
+                        <TableHead>Proyecto</TableHead>
                         <TableHead>Método</TableHead>
+                        <TableHead className="text-right">Subtotal</TableHead>
+                        <TableHead className="text-right">IVA</TableHead>
                         <TableHead
                           className="text-right cursor-pointer hover:bg-muted/50 transition-colors select-none"
                           onClick={() => handleSortIngresos('monto')}
                         >
                           <span className="inline-flex items-center justify-end gap-1">
-                            Monto
+                            Total
                             {sortConfigIngresos.key !== 'monto' && <ArrowUpDown className="text-muted-foreground w-4 h-4" />}
                             {sortConfigIngresos.key === 'monto' && (sortConfigIngresos.direction === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />)}
                           </span>
                         </TableHead>
                         <TableHead className="text-center">Factura</TableHead>
+                        <TableHead className="text-right">% pago</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {ingresosFiltrados.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-6 text-gray-500">No hay ingresos en el periodo.</TableCell>
+                          <TableCell colSpan={12} className="text-center py-6 text-gray-500">No hay ingresos en el periodo.</TableCell>
                         </TableRow>
                       ) : (
                         ingresosFiltrados.map((i, idx) => (
                           <TableRow key={i?.id ?? `ing-${idx}`}>
-                            <TableCell className="whitespace-nowrap">{formatDateTable(i.fecha || i.fecha_pago)}</TableCell>
-                            <TableCell>{i.cliente}</TableCell>
-                            <TableCell className="max-w-[200px] truncate">{i.proyecto}</TableCell>
-                            <TableCell>{empresaLabel(i.empresa)}</TableCell>
-                            <TableCell>{marcaLabel(i.marca)}</TableCell>
-                            <TableCell className="whitespace-nowrap">{getCuentaLabel(i.cuenta_value || i.metodo_pago)}</TableCell>
-                            <TableCell className="text-right font-medium text-green-700">${Number(i.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                            {(() => { const dg = desglosePago(i.monto, i.aplica_iva); return (<>
+                              <TableCell className="whitespace-nowrap">{formatDateTable(i.fecha || i.fecha_pago)}</TableCell>
+                              <TableCell>{empresaLabel(i.empresa)}</TableCell>
+                              <TableCell>{marcaLabel(i.marca)}</TableCell>
+                              <TableCell>{i.cliente}</TableCell>
+                              <TableCell>{i.cotizacion_id ? <button className="text-blue-600 hover:underline" onClick={() => setPreviewCotId(i.cotizacion_id)}>Ver</button> : '—'}</TableCell>
+                              <TableCell>{i.proyecto_folio ? <button className="text-blue-600 hover:underline" onClick={() => navigate(`${proyectosBase}/${i.proyecto_id}`)}>{i.proyecto_folio}</button> : '—'}</TableCell>
+                              <TableCell className="whitespace-nowrap">{getCuentaLabel(i.cuenta_value || i.metodo_pago)}</TableCell>
+                              <TableCell className="text-right">${dg.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right">${dg.iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right font-medium text-green-700">${dg.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
+                            </>); })()}
                             <TableCell className="text-center">
                               {(() => {
                                 const e = estatusFactura(i);
@@ -709,6 +732,10 @@ const Finanzas = () => {
                                   </span>
                                 );
                               })()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="font-medium">{Math.round(i.pct_pagado ?? 0)}%</span>
+                              <span className="block text-[10px] text-gray-400">de ${Number(i.costo_total_proyecto || 0).toLocaleString('es-MX')}</span>
                             </TableCell>
                           </TableRow>
                         ))
@@ -1043,6 +1070,8 @@ const Finanzas = () => {
         proyecto={facturaProyecto}
         onSaved={() => { setFacturaProyecto(null); fetchDatos(); }}
       />
+
+      <CotizacionPreviewDialog cotizacionId={previewCotId} open={!!previewCotId} onOpenChange={(o) => { if (!o) setPreviewCotId(null); }} />
     </>
   );
 };
