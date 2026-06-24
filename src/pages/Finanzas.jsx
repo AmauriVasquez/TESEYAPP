@@ -21,7 +21,7 @@ import { empresaLabel, marcaLabel, estatusFactura, desglosePago } from '@/lib/fa
 import RegistrarFacturaDialog from '@/components/finanzas/RegistrarFacturaDialog';
 import RegistrarPagoDialog from '@/components/proyectos/RegistrarPagoDialog';
 import PagoMultiProyectoDialog from '@/components/finanzas/PagoMultiProyectoDialog';
-import CotizacionPreviewDialog from '@/components/finanzas/CotizacionPreviewDialog';
+import SeleccionarFormatoCotizacionDialog from '@/components/cotizaciones/SeleccionarFormatoCotizacionDialog';
 import { getCuentaLabel } from '@/config/cuentasPago';
 import { useProyectosPathPrefix } from '@/hooks/useProyectosPathPrefix';
 import { useNavigate } from 'react-router-dom';
@@ -204,7 +204,7 @@ const Finanzas = () => {
     (async () => {
       const { data: proyData } = await supabase
         .from('proyectos')
-        .select('id, folio, descripcion, requiere_cfdi, factura_descartada, cliente:cliente_id(nombre), cliente_nombre_externo, cotizacion_id, cotizacion:cotizacion_id(branding, marca_comercial, aplica_iva)')
+        .select('id, folio, descripcion, requiere_cfdi, factura_descartada, cliente:cliente_id(nombre), cliente_nombre_externo, cotizacion_id, cotizacion_folio, cotizacion:cotizacion_id(branding, marca_comercial, aplica_iva)')
         .in('id', proyectoIds);
       const mapProy = (proyData || []).reduce(
         (acc, p) => ({
@@ -219,6 +219,7 @@ const Finanzas = () => {
             factura_descartada: !!p?.factura_descartada,
             aplica_iva: p?.cotizacion?.aplica_iva !== false,
             cotizacion_id: p?.cotizacion_id ?? null,
+            cot_folio: p?.cotizacion_folio ?? '',
           },
         }),
         {}
@@ -255,6 +256,7 @@ const Finanzas = () => {
             factura_numero: facturaPorPago[i?.id] ?? null,
             aplica_iva: p?.aplica_iva ?? true,
             cotizacion_id: p?.cotizacion_id ?? null,
+            cotizacion_folio: p?.cot_folio ?? '',
             proyecto_folio: p?.folio ?? '',
             pct_pagado: progPorProy[i.proyecto_id]?.pct_pagado ?? 0,
             costo_total_proyecto: progPorProy[i.proyecto_id]?.costo_total ?? 0,
@@ -623,6 +625,7 @@ const Finanzas = () => {
                       </div>
                       <p className="text-xs text-gray-500">
                         {i.proyecto_folio ? <button className="text-blue-600 hover:underline" onClick={() => navigate(`${proyectosBase}/${i.proyecto_id}`)}>{i.proyecto_folio}</button> : '—'}
+                        {i.cotizacion_id ? <>{' · '}<button className="text-blue-600 hover:underline font-mono" onClick={() => setPreviewCotId(i.cotizacion_id)}>{i.cotizacion_folio || `COT-${i.cotizacion_id}`}</button></> : null}
                         {' · '}{empresaLabel(i.empresa)} · {getCuentaLabel(i.cuenta_value || i.metodo_pago)}
                       </p>
                       <p className="text-xs text-gray-400">{formatDateTable(i.fecha || i.fecha_pago)} · {Math.round(i.pct_pagado ?? 0)}% pagado</p>
@@ -701,7 +704,7 @@ const Finanzas = () => {
                               <TableCell>{empresaLabel(i.empresa)}</TableCell>
                               <TableCell>{marcaLabel(i.marca)}</TableCell>
                               <TableCell>{i.cliente}</TableCell>
-                              <TableCell>{i.cotizacion_id ? <button className="text-blue-600 hover:underline" onClick={() => setPreviewCotId(i.cotizacion_id)}>Ver</button> : '—'}</TableCell>
+                              <TableCell>{i.cotizacion_id ? <button className="text-blue-600 hover:underline font-mono text-xs" onClick={() => setPreviewCotId(i.cotizacion_id)}>{i.cotizacion_folio || `COT-${i.cotizacion_id}`}</button> : '—'}</TableCell>
                               <TableCell>{i.proyecto_folio ? <button className="text-blue-600 hover:underline" onClick={() => navigate(`${proyectosBase}/${i.proyecto_id}`)}>{i.proyecto_folio}</button> : '—'}</TableCell>
                               <TableCell className="whitespace-nowrap">{getCuentaLabel(i.cuenta_value || i.metodo_pago)}</TableCell>
                               <TableCell className="text-right">${dg.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</TableCell>
@@ -1038,7 +1041,17 @@ const Finanzas = () => {
         onSaved={() => { setFacturaProyecto(null); fetchDatos(); }}
       />
 
-      <CotizacionPreviewDialog cotizacionId={previewCotId} open={!!previewCotId} onOpenChange={(o) => { if (!o) setPreviewCotId(null); }} />
+      {previewCotId && (
+        <SeleccionarFormatoCotizacionDialog
+          open={!!previewCotId}
+          onOpenChange={(o) => { if (!o) setPreviewCotId(null); }}
+          cotizacionId={previewCotId}
+          cotizacion={null}
+          modoProyecto={true}
+          onEditar={() => setPreviewCotId(null)}
+          onCrearNuevaVersion={() => setPreviewCotId(null)}
+        />
+      )}
     </>
   );
 };
