@@ -127,6 +127,7 @@ const Finanzas = () => {
     [gastos]
   );
   const balance = useMemo(() => Number(totalIngresos) - Number(totalGastos), [totalIngresos, totalGastos]);
+  const [ingresosConProyecto, setIngresosConProyecto] = useState([]);
   const subtotalPeriodo = useMemo(
     () => (ingresosConProyecto || []).reduce((s, i) => s + desglosePago(i.monto, i.aplica_iva).subtotal, 0),
     [ingresosConProyecto]
@@ -187,7 +188,6 @@ const Finanzas = () => {
   const navigate = useNavigate();
   const proyectosBase = useProyectosPathPrefix();
   const [previewCotId, setPreviewCotId] = useState(null);
-  const [ingresosConProyecto, setIngresosConProyecto] = useState([]);
   const [filtroFactura, setFiltroFactura] = useState('todas');
   const [facturaProyecto, setFacturaProyecto] = useState(null);
   const [sortConfigIngresos, setSortConfigIngresos] = useState({ key: 'fecha', direction: 'desc' });
