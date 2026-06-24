@@ -1,31 +1,22 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
 import { notifyPagoRecibido } from '@/services/TelegramService';
-import { Loader2, Upload, FileText, Calendar as CalendarIcon, Trash2, AlertTriangle } from 'lucide-react';
+import { registrarFactura } from '@/services/facturasService';
+import { Loader2, Calendar as CalendarIcon, Trash2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Combobox } from '@/components/ui/combobox';
 import { Switch } from '@/components/ui/switch';
-import { CUENTAS_PAGO, validarCobro } from '@/config/cuentasPago';
+import { CUENTAS_PAGO, validarCobro, getCuenta, brandingToEntidad } from '@/config/cuentasPago';
+import { empresaLabel } from '@/lib/facturacionDisplay';
 
 const TIPOS_INGRESO = [
   { value: 'Anticipo', label: 'Anticipo' },
@@ -34,7 +25,14 @@ const TIPOS_INGRESO = [
   { value: 'Anticipo por Partida', label: 'Anticipo por Partida' },
 ];
 
+const ENTIDADES = [
+  { value: 'tesey', label: 'TESEY' },
+  { value: 'ipe', label: 'IIHEMSA Peninsular (IPE)' },
+];
+
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
+const money = (n) => Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const clamp = (n) => Math.max(0, Math.min(100, n));
 
 const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: pagoEditar, onSave }) => {
   const { toast } = useToast();
@@ -42,49 +40,50 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
   const [fechaPago, setFechaPago] = useState(null);
   const [metodoPago, setMetodoPago] = useState('');
   const [tipoIngreso, setTipoIngreso] = useState('Anticipo');
+  const [pctAnticipo, setPctAnticipo] = useState('');
   const [partidaId, setPartidaId] = useState('');
   const [partidas, setPartidas] = useState([]);
   const [comentarios, setComentarios] = useState('');
   const [cfdiFile, setCfdiFile] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [aplicaIva, setAplicaIva] = useState(true);
   const [cotizacionIva, setCotizacionIva] = useState(null);
-  const [clienteId, setClienteId] = useState(null);
-  const [clientes, setClientes] = useState([]);
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pagadoActual, setPagadoActual] = useState(0);
+  // Sección "Ya facturado"
+  const [yaFacturado, setYaFacturado] = useState(false);
+  const [facturaNumero, setFacturaNumero] = useState('');
+  const [facturaFecha, setFacturaFecha] = useState('');
+  const [facturaEmisora, setFacturaEmisora] = useState('tesey');
   const fileInputRef = useRef(null);
 
   const isEditMode = Boolean(pagoEditar?.id);
   const tieneCotizacion = Boolean(proyecto?.cotizacion_id);
+  const branding = cotizacionIva?.branding ?? proyecto?.branding ?? null;
+  const aplicaIva = cotizacionIva?.aplica_iva ?? false; // solo lectura: del proyecto/cotización
 
-  // Valores originales al abrir (para isDirty)
-  const clienteIdOriginal = proyecto?.cliente_id ?? null;
-  const aplicaIvaOriginal = cotizacionIva?.aplica_iva ?? true;
-  const isDirty = useMemo(() => {
-    const clienteCambiado = String(clienteId ?? '') !== String(clienteIdOriginal ?? '');
-    const ivaCambiado = tieneCotizacion && cotizacionIva && aplicaIva !== aplicaIvaOriginal;
-    return clienteCambiado || ivaCambiado;
-  }, [clienteId, clienteIdOriginal, aplicaIva, aplicaIvaOriginal, tieneCotizacion, cotizacionIva]);
+  const costoTotal = Number(proyecto?.costo_total ?? cotizacionIva?.total ?? 0);
+  const saldoPendiente = round2(costoTotal - pagadoActual);
+  const pagadoProyectado = round2(pagadoActual + Number(monto || 0));
+  const pctProgreso = costoTotal > 0 ? clamp(round2(pagadoProyectado / costoTotal * 100)) : 0;
+  const pctMonto = costoTotal > 0 ? round2(Number(monto || 0) / costoTotal * 100) : 0;
+
+  // Resumen del proyecto (solo lectura, derivado de la cotización)
+  const { subtotal, ivaProyecto, totalProyecto } = useMemo(() => {
+    const total = Number(cotizacionIva?.total ?? 0);
+    const sub = aplicaIva ? round2(total / 1.16) : round2(total);
+    return { subtotal: sub, ivaProyecto: round2(total - sub), totalProyecto: round2(total) };
+  }, [cotizacionIva?.total, aplicaIva]);
 
   const avisoCobro = useMemo(
     () => validarCobro({
       requiereCfdi: tieneCotizacion ? aplicaIva : !!proyecto?.requiere_cfdi,
       cuentaValue: metodoPago,
-      branding: cotizacionIva?.branding ?? proyecto?.branding ?? null,
+      branding,
     }),
-    [aplicaIva, metodoPago, tieneCotizacion, proyecto, cotizacionIva]
+    [aplicaIva, metodoPago, tieneCotizacion, proyecto, branding]
   );
 
-  // FASE 2: Subtotal y total en tiempo real (cálculo inverso seguro)
-  const { subtotal, ivaCalculado, nuevoTotal } = useMemo(() => {
-    const totalActual = cotizacionIva?.total ?? 0;
-    const conIvaActual = cotizacionIva?.aplica_iva ?? true;
-    const sub = conIvaActual ? round2(totalActual / 1.16) : round2(totalActual);
-    const iva = aplicaIva ? round2(sub * 0.16) : 0;
-    const total = aplicaIva ? round2(sub * 1.16) : round2(sub);
-    return { subtotal: sub, ivaCalculado: iva, nuevoTotal: total };
-  }, [cotizacionIva?.total, cotizacionIva?.aplica_iva, aplicaIva]);
+  const cuentaEntidad = getCuenta(metodoPago)?.entidad ?? null;
 
   useEffect(() => {
     if (!open) return;
@@ -104,13 +103,16 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
       setPartidaId('');
       setComentarios('');
       setCfdiFile(null);
+      setPctAnticipo('');
     }
+    setYaFacturado(false);
+    setFacturaNumero('');
+    setFacturaFecha(format(new Date(), 'yyyy-MM-dd'));
   }, [open, pagoEditar]);
 
   useEffect(() => {
     if (!open || !proyecto?.cotizacion_id) {
       setCotizacionIva(null);
-      setAplicaIva(true);
       return;
     }
     let cancelled = false;
@@ -121,31 +123,28 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
         .eq('id', proyecto.cotizacion_id)
         .single();
       if (cancelled) return;
-      if (error || !data) {
-        setCotizacionIva(null);
-        setAplicaIva(true);
-        return;
-      }
-      const aplica = data.aplica_iva !== false;
-      setCotizacionIva({ total: Number(data.total || 0), aplica_iva: aplica, branding: data.branding ?? null });
-      setAplicaIva(aplica);
+      if (error || !data) { setCotizacionIva(null); return; }
+      setCotizacionIva({ total: Number(data.total || 0), aplica_iva: data.aplica_iva !== false, branding: data.branding ?? null });
     })();
     return () => { cancelled = true; };
   }, [open, proyecto?.cotizacion_id]);
 
+  // Default de emisora cuando se conoce el branding
   useEffect(() => {
-    if (!open) return;
-    setClienteId(proyecto?.cliente_id ?? null);
-  }, [open, proyecto?.cliente_id]);
+    setFacturaEmisora(brandingToEntidad(branding) ?? 'tesey');
+  }, [branding]);
 
+  // Pagado actual del proyecto (excluye el pago en edición)
   useEffect(() => {
-    if (!open) return;
+    if (!open || !proyectoId) { setPagadoActual(0); return; }
     let cancelled = false;
-    supabase.from('clientes').select('id, nombre').order('nombre').then(({ data }) => {
-      if (!cancelled) setClientes(data || []);
+    supabase.from('proyecto_pagos').select('id, monto').eq('proyecto_id', proyectoId).then(({ data }) => {
+      if (cancelled) return;
+      const sum = (data || []).reduce((s, p) => s + (pagoEditar && p.id === pagoEditar.id ? 0 : Number(p.monto || 0)), 0);
+      setPagadoActual(round2(sum));
     });
     return () => { cancelled = true; };
-  }, [open]);
+  }, [open, proyectoId, pagoEditar]);
 
   const isAnticipoPartida = tipoIngreso === 'Anticipo por Partida';
   useEffect(() => {
@@ -177,6 +176,17 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
     if (e.target.files?.[0]) setCfdiFile(e.target.files[0]);
   };
 
+  const handleTipoChange = (v) => {
+    setTipoIngreso(v);
+    setPartidaId('');
+    if (!isEditMode && v === 'Liquidación') setMonto(String(saldoPendiente > 0 ? saldoPendiente : 0));
+  };
+
+  const handlePctChange = (v) => {
+    setPctAnticipo(v);
+    if (v !== '' && costoTotal > 0) setMonto(String(round2(Number(v) / 100 * costoTotal)));
+  };
+
   const buildComentarios = () => {
     if (isAnticipoPartida && partidaId) {
       const partidaDesc = partidas.find((p) => String(p.id) === partidaId)?.descripcion || partidaId;
@@ -184,20 +194,6 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
     }
     return comentarios || null;
   };
-
-  const nombreClienteSeleccionado = useMemo(() => {
-    if (clienteId == null) return 'Público en general';
-    const c = clientes.find((x) => x.id === clienteId);
-    return c?.nombre ?? 'Cliente';
-  }, [clienteId, clientes]);
-
-  const clientesOptions = useMemo(
-    () => [
-      { value: 'externo', label: 'Público en general' },
-      ...(clientes || []).map((c) => ({ value: String(c.id), label: c.nombre })),
-    ],
-    [clientes]
-  );
 
   const doSave = async () => {
     if (!monto || !fechaPago || !metodoPago) {
@@ -208,39 +204,20 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
       toast({ variant: 'destructive', title: 'Error', description: 'Selecciona la partida de la cotización.' });
       return;
     }
+    if (yaFacturado && (!facturaNumero.trim() || !facturaFecha)) {
+      toast({ variant: 'destructive', title: 'Falta la factura', description: 'Folio y fecha de factura son obligatorios si marcas "Ya facturado".' });
+      return;
+    }
     if (isEditMode && !window.confirm('¿Estás seguro de actualizar este pago?')) return;
+    // Aviso (no bloqueante) si la liquidación no cierra el saldo
+    if (!isEditMode && tipoIngreso === 'Liquidación' && round2(Number(monto)) !== saldoPendiente) {
+      toast({ title: 'Aviso', description: `La liquidación ($${money(monto)}) no cierra el saldo ($${money(saldoPendiente)}).` });
+    }
     setIsSaving(true);
-    setConfirmDialogOpen(false);
 
-    const sanitizeFilename = (filename) => filename.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+    const sanitizeFilename = (filename) => filename.replace(/[^a-zA-Z0-9-_.]/g, '_');
 
     try {
-      // FASE 4: Update en cascada (proyecto + cotización) si hay cambios
-      if (isDirty && proyecto?.id) {
-        if (clienteId !== clienteIdOriginal) {
-          const { error: errProy } = await supabase
-            .from('proyectos')
-            .update({
-              cliente_id: clienteId ? Number(clienteId) : null,
-              cliente_nombre_externo: clienteId ? null : (proyecto.cliente_nombre_externo ?? 'Público en general'),
-            })
-            .eq('id', proyecto.id);
-          if (errProy) throw new Error(`Error al actualizar proyecto: ${errProy.message}`);
-        }
-        if (tieneCotizacion && proyecto.cotizacion_id && (aplicaIva !== aplicaIvaOriginal || cotizacionIva)) {
-          const nuevoTotalCotizacion = aplicaIva !== aplicaIvaOriginal
-            ? (aplicaIva ? round2(subtotal * 1.16) : round2(subtotal))
-            : cotizacionIva?.total;
-          const payloadCot = { aplica_iva: aplicaIva, total: round2(nuevoTotalCotizacion) };
-          if (clienteId !== clienteIdOriginal) payloadCot.cliente_id = clienteId ? Number(clienteId) : null;
-          const { error: errCot } = await supabase
-            .from('cotizaciones')
-            .update(payloadCot)
-            .eq('id', proyecto.cotizacion_id);
-          if (errCot) throw new Error(`Error al actualizar cotización: ${errCot.message}`);
-        }
-      }
-
       let cfdiUrl = undefined;
       if (cfdiFile) {
         const path = `pagos/${proyectoId}/${Date.now()}_${sanitizeFilename(cfdiFile.name)}`;
@@ -262,7 +239,7 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
         if (dbError) throw new Error(dbError.message);
         toast({ title: '✅ Pago actualizado' });
       } else {
-        const { error: dbError } = await supabase.from('proyecto_pagos').insert({
+        const { data: nuevoCobro, error: dbError } = await supabase.from('proyecto_pagos').insert({
           proyecto_id: proyectoId,
           monto: parseFloat(monto),
           fecha_pago: format(fechaPago, 'yyyy-MM-dd'),
@@ -270,14 +247,31 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
           cuenta_value: metodoPago,
           comentarios: buildComentarios(),
           url_cfdi: cfdiUrl ?? null,
-        });
+        }).select('id').single();
         if (dbError) throw new Error(dbError.message);
         notifyPagoRecibido({
           proyectoNombre: proyecto?.descripcion,
           referencia: comentarios || undefined,
           folio: proyecto?.folio,
         });
-        toast({ title: '✅ Pago Registrado' });
+        if (yaFacturado && nuevoCobro?.id) {
+          const { error: facErr } = await registrarFactura({
+            proyectoId,
+            empresaEmisora: facturaEmisora,
+            numero: facturaNumero.trim(),
+            fechaEmision: facturaFecha,
+            monto: parseFloat(monto),
+            cobroIds: [nuevoCobro.id],
+          });
+          if (facErr) {
+            const dup = /facturas_numero_unico|duplicate key/i.test(facErr.message);
+            toast({ variant: 'destructive', title: 'Pago guardado, factura pendiente', description: dup ? `El folio "${facturaNumero}" ya existe; regístralo desde la tabla.` : facErr.message });
+          } else {
+            toast({ title: '✅ Pago y factura registrados' });
+          }
+        } else {
+          toast({ title: '✅ Pago Registrado' });
+        }
       }
       onSave();
       onOpenChange(false);
@@ -290,22 +284,6 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleSave = () => {
-    if (!monto || !fechaPago || !metodoPago) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Monto, fecha y método de pago son requeridos.' });
-      return;
-    }
-    if (isAnticipoPartida && !partidaId) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Selecciona la partida de la cotización.' });
-      return;
-    }
-    if (isDirty) {
-      setConfirmDialogOpen(true);
-      return;
-    }
-    doSave();
   };
 
   const handleDelete = async () => {
@@ -325,220 +303,216 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
   };
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent
-          className={cn(
-            'w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto',
-            'sm:w-full p-4 sm:p-6'
-          )}
-        >
-          <DialogHeader>
-            <DialogTitle className="text-xl">{isEditMode ? 'Editar Pago' : 'Registrar Pago del Proyecto'}</DialogTitle>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className={cn(
+          'w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto',
+          'sm:w-full p-4 sm:p-6'
+        )}
+      >
+        <DialogHeader>
+          <DialogTitle className="text-xl">{isEditMode ? 'Editar Pago' : 'Registrar Pago del Proyecto'}</DialogTitle>
+        </DialogHeader>
 
-          <div className="flex flex-col md:grid md:grid-cols-2 gap-6 py-2">
-            {/* FASE 1 - Columna 1: Detalles del Ingreso */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">Detalles del Ingreso</h3>
-              <div className="space-y-2">
-                <Label>Tipo de ingreso</Label>
-                <Select value={tipoIngreso} onValueChange={(v) => { setTipoIngreso(v); setPartidaId(''); }}>
-                  <SelectTrigger className="p-3 h-auto"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TIPOS_INGRESO.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {isAnticipoPartida && (
-                <div className="space-y-2">
-                  <Label>Partida de la cotización *</Label>
-                  {proyecto?.cotizacion_id ? (
-                    <Select value={partidaId} onValueChange={setPartidaId}>
-                      <SelectTrigger className="p-3 h-auto"><SelectValue placeholder="Selecciona partida..." /></SelectTrigger>
-                      <SelectContent>
-                        {partidas.map((p, idx) => (
-                          <SelectItem key={p.id} value={String(p.id)}>Partida {idx + 1}: {p.descripcion}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-sm text-amber-600">Este proyecto no tiene cotización vinculada.</p>
-                  )}
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="monto">Monto a pagar *</Label>
-                <Input
-                  id="monto"
-                  type="number"
-                  step="0.01"
-                  value={monto}
-                  onChange={(e) => setMonto(e.target.value)}
-                  placeholder="Ej. 5000.00"
-                  className="p-3 h-auto"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Fecha de Pago *</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn('w-full justify-start text-left font-normal p-3 h-auto', !fechaPago && 'text-muted-foreground')}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {fechaPago ? format(fechaPago, 'PPP', { locale: es }) : 'Elige una fecha'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={fechaPago} onSelect={setFechaPago} initialFocus /></PopoverContent>
-                </Popover>
-              </div>
-              <div className="space-y-2">
-                <Label>Método de Pago *</Label>
-                <Select value={metodoPago} onValueChange={setMetodoPago}>
-                  <SelectTrigger className="p-3 h-auto"><SelectValue placeholder="Selecciona un método..." /></SelectTrigger>
-                  <SelectContent>
-                    {CUENTAS_PAGO.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {avisoCobro.mensaje && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                    ⚠️ {avisoCobro.mensaje}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ref-comentarios">Referencia / Comentarios</Label>
-                <textarea
-                  id="ref-comentarios"
-                  value={comentarios}
-                  onChange={(e) => setComentarios(e.target.value)}
-                  className="w-full p-3 border rounded-lg min-h-[80px]"
-                  rows={2}
-                  placeholder="Ej. Anticipo 50%..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Adjuntar CFDI (opcional)</Label>
-                <div
-                  className="flex justify-center items-center px-4 py-5 border-2 border-dashed rounded-lg cursor-pointer min-h-[100px]"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {cfdiFile ? (
-                    <p className="font-semibold text-blue-600 truncate max-w-full">{cfdiFile.name}</p>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">Toca para subir (XML, PDF)</span>
-                  )}
-                </div>
-                <input ref={fileInputRef} type="file" className="sr-only" onChange={handleFileChange} accept=".xml,.pdf" />
-              </div>
+        <div className="flex flex-col md:grid md:grid-cols-2 gap-6 py-2">
+          {/* Columna 1: Detalles del Ingreso */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">Detalles del Ingreso</h3>
+            <div className="space-y-2">
+              <Label>Tipo de ingreso</Label>
+              <Select value={tipoIngreso} onValueChange={handleTipoChange}>
+                <SelectTrigger className="p-3 h-auto"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TIPOS_INGRESO.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* FASE 1 - Columna 2: Configuración del Proyecto y Totales */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">Configuración del Proyecto</h3>
-
+            {tipoIngreso === 'Anticipo' && !isEditMode && (
               <div className="space-y-2">
-                <Label>Cliente</Label>
-                <Combobox
-                  options={clientesOptions}
-                  value={clienteId != null ? String(clienteId) : 'externo'}
-                  onChange={(v) => setClienteId(v === 'externo' || !v ? null : parseInt(v, 10))}
-                  placeholder="Selecciona un cliente"
-                  searchPlaceholder="Buscar cliente..."
-                  notFoundMessage="Ningún cliente encontrado."
-                />
+                <Label htmlFor="pct-anticipo">% del anticipo (sobre el total)</Label>
+                <div className="flex items-center gap-2">
+                  <Input id="pct-anticipo" type="number" step="1" value={pctAnticipo} onChange={(e) => handlePctChange(e.target.value)} placeholder="Ej. 50" className="p-3 h-auto w-28" />
+                  <div className="flex gap-1">
+                    {[25, 50, 100].map((q) => (
+                      <Button key={q} type="button" variant="outline" size="sm" onClick={() => handlePctChange(String(q))}>{q}%</Button>
+                    ))}
+                  </div>
+                </div>
               </div>
+            )}
 
-              {tieneCotizacion && (
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="aplica-iva-pago" className="text-base">Aplicar IVA (16%)</Label>
-                    <p className="text-xs text-muted-foreground">Estatus fiscal para el cobro</p>
-                  </div>
-                  <Switch id="aplica-iva-pago" checked={aplicaIva} onCheckedChange={setAplicaIva} />
-                </div>
-              )}
-
-              {/* Tarjeta Resumen Financiero en tiempo real */}
-              <div className="bg-gray-50 p-4 rounded-lg space-y-2 border">
-                <p className="text-sm font-semibold text-gray-700">Resumen del proyecto</p>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-                {aplicaIva && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">IVA (16%)</span>
-                    <span className="font-medium">${ivaCalculado.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
+            {isAnticipoPartida && (
+              <div className="space-y-2">
+                <Label>Partida de la cotización *</Label>
+                {proyecto?.cotizacion_id ? (
+                  <Select value={partidaId} onValueChange={setPartidaId}>
+                    <SelectTrigger className="p-3 h-auto"><SelectValue placeholder="Selecciona partida..." /></SelectTrigger>
+                    <SelectContent>
+                      {partidas.map((p, idx) => (
+                        <SelectItem key={p.id} value={String(p.id)}>Partida {idx + 1}: {p.descripcion}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-sm text-amber-600">Este proyecto no tiene cotización vinculada.</p>
                 )}
-                <div className="flex justify-between text-base font-bold pt-2 border-t">
-                  <span>Nuevo total</span>
-                  <span className="text-green-700">${nuevoTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
               </div>
+            )}
 
-              {isDirty && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  Hay cambios en cliente o IVA. Al guardar se actualizarán el proyecto y la cotización antes de registrar el pago.
+            <div className="space-y-2">
+              <Label htmlFor="monto">Monto a pagar *</Label>
+              <Input id="monto" type="number" step="0.01" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder="Ej. 5000.00" className="p-3 h-auto" />
+              {costoTotal > 0 && monto && (
+                <p className="text-xs text-gray-500">≈ {Math.round(pctMonto)}% del total del proyecto</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Fecha de Pago *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn('w-full justify-start text-left font-normal p-3 h-auto', !fechaPago && 'text-muted-foreground')}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {fechaPago ? format(fechaPago, 'PPP', { locale: es }) : 'Elige una fecha'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={fechaPago} onSelect={setFechaPago} initialFocus /></PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Método de Pago *</Label>
+              <Select value={metodoPago} onValueChange={setMetodoPago}>
+                <SelectTrigger className="p-3 h-auto"><SelectValue placeholder="Selecciona un método..." /></SelectTrigger>
+                <SelectContent>
+                  {CUENTAS_PAGO.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {avisoCobro.mensaje && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                  ⚠️ {avisoCobro.mensaje}
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ref-comentarios">Referencia / Comentarios</Label>
+              <textarea id="ref-comentarios" value={comentarios} onChange={(e) => setComentarios(e.target.value)} className="w-full p-3 border rounded-lg min-h-[80px]" rows={2} placeholder="Ej. Anticipo 50%..." />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Adjuntar CFDI (opcional)</Label>
+              <div className="flex justify-center items-center px-4 py-5 border-2 border-dashed rounded-lg cursor-pointer min-h-[100px]" onClick={() => fileInputRef.current?.click()}>
+                {cfdiFile ? (
+                  <p className="font-semibold text-blue-600 truncate max-w-full">{cfdiFile.name}</p>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Toca para subir (XML, PDF)</span>
+                )}
+              </div>
+              <input ref={fileInputRef} type="file" className="sr-only" onChange={handleFileChange} accept=".xml,.pdf" />
             </div>
           </div>
 
-          <DialogFooter className="flex flex-row flex-wrap gap-2 sm:justify-between pt-4 border-t mt-4">
-            <div className="flex items-center gap-2 order-2 sm:order-1">
-              {isEditMode && (
-                <Button type="button" variant="destructive" size="sm" className="gap-1.5 min-h-[44px]" onClick={handleDelete} disabled={isSaving || isDeleting}>
-                  {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                  Eliminar
-                </Button>
-              )}
-            </div>
-            <div className="flex items-center gap-2 order-1 sm:order-2 ml-auto flex-wrap">
-              <DialogClose asChild>
-                <Button variant="outline" disabled={isSaving || isDeleting} className="min-h-[44px]">Cancelar</Button>
-              </DialogClose>
-              <Button onClick={handleSave} disabled={isSaving || isDeleting} className="min-h-[44px] gap-2">
-                {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isEditMode ? 'Guardar Cambios' : 'Guardar Pago'}
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {/* Columna 2: Receptora, progreso, resumen y factura */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">Estatus del Proyecto</h3>
 
-      {/* FASE 3: Modal de confirmación cuando hay cambios en cliente/IVA */}
-      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-amber-700">
-              <AlertTriangle className="h-5 w-5" />
-              Atención: Cambio en las condiciones del proyecto
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2 text-left">
-                <p>Estás a punto de modificar este proyecto antes de registrar el pago.</p>
-                <ul className="list-disc pl-4 space-y-1">
-                  <li><strong>Nuevo Cliente:</strong> {nombreClienteSeleccionado}</li>
-                  <li><strong>Nuevo Total del Proyecto:</strong> ${nuevoTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</li>
-                </ul>
-                <p>¿Estás seguro de aplicar estos cambios y registrar el pago?</p>
+            {/* Receptora (solo lectura) */}
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-gray-500">Empresa (factura)</p>
+                <p className="font-medium">{empresaLabel(branding)}</p>
               </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="min-h-[44px]">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={doSave} className="min-h-[44px] bg-green-600 hover:bg-green-700">
-              Confirmar y Guardar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-gray-500">Cuenta receptora</p>
+                <p className="font-medium capitalize">{cuentaEntidad ? (cuentaEntidad === 'ipe' ? 'IIHEMSA Peninsular' : cuentaEntidad === 'tesey' ? 'Tesey' : cuentaEntidad) : (metodoPago ? 'Indistinta' : '—')}</p>
+              </div>
+            </div>
+
+            {/* Barra de progreso de pago */}
+            {costoTotal > 0 && (
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2 border">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Progreso de pago</span>
+                  <span className="font-semibold">{Math.round(pctProgreso)}%</span>
+                </div>
+                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-green-600" style={{ width: `${pctProgreso}%` }} />
+                </div>
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Pagado: ${money(pagadoProyectado)}</span>
+                  <span>Saldo: ${money(round2(costoTotal - pagadoProyectado))}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Resumen del proyecto (solo lectura) */}
+            {cotizacionIva && (
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2 border">
+                <p className="text-sm font-semibold text-gray-700">Resumen del proyecto</p>
+                <div className="flex justify-between text-sm"><span className="text-gray-600">Subtotal</span><span className="font-medium">${money(subtotal)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-600">IVA</span><span className="font-medium">${money(ivaProyecto)}</span></div>
+                <div className="flex justify-between text-base font-bold pt-2 border-t"><span>Total</span><span className="text-green-700">${money(totalProyecto)}</span></div>
+                <p className="text-[11px] text-gray-400">{aplicaIva ? 'IVA incluido' : 'Sin IVA'} · el IVA solo se cambia en la cotización</p>
+              </div>
+            )}
+
+            {/* Sección "Ya facturado" */}
+            {!isEditMode && (
+              <div className="rounded-lg border p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="ya-facturado" className="text-base">Este pago ya está facturado</Label>
+                    <p className="text-xs text-muted-foreground">Captura el folio si facturas antes/al cobrar</p>
+                  </div>
+                  <Switch id="ya-facturado" checked={yaFacturado} onCheckedChange={setYaFacturado} />
+                </div>
+                {yaFacturado && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1"><Label>Folio *</Label><Input value={facturaNumero} onChange={(e) => setFacturaNumero(e.target.value)} placeholder="A-1009" /></div>
+                      <div className="space-y-1"><Label>Fecha *</Label><Input type="date" value={facturaFecha} onChange={(e) => setFacturaFecha(e.target.value)} /></div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Emisora</Label>
+                      <Select value={facturaEmisora} onValueChange={setFacturaEmisora}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>{ENTIDADES.map((e) => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="flex flex-row flex-wrap gap-2 sm:justify-between pt-4 border-t mt-4">
+          <div className="flex items-center gap-2 order-2 sm:order-1">
+            {isEditMode && (
+              <Button type="button" variant="destructive" size="sm" className="gap-1.5 min-h-[44px]" onClick={handleDelete} disabled={isSaving || isDeleting}>
+                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Eliminar
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 order-1 sm:order-2 ml-auto flex-wrap">
+            <DialogClose asChild>
+              <Button variant="outline" disabled={isSaving || isDeleting} className="min-h-[44px]">Cancelar</Button>
+            </DialogClose>
+            <Button onClick={doSave} disabled={isSaving || isDeleting} className="min-h-[44px] gap-2">
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isEditMode ? 'Guardar Cambios' : 'Guardar Pago'}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
