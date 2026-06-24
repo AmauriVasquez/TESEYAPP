@@ -20,6 +20,7 @@ import { formatDateTable } from '@/lib/dateUtils';
 import { empresaLabel, marcaLabel, estatusFactura, desglosePago } from '@/lib/facturacionDisplay';
 import RegistrarFacturaDialog from '@/components/finanzas/RegistrarFacturaDialog';
 import RegistrarPagoDialog from '@/components/proyectos/RegistrarPagoDialog';
+import PagoMultiProyectoDialog from '@/components/finanzas/PagoMultiProyectoDialog';
 import CotizacionPreviewDialog from '@/components/finanzas/CotizacionPreviewDialog';
 import { getCuentaLabel } from '@/config/cuentasPago';
 import { useProyectosPathPrefix } from '@/hooks/useProyectosPathPrefix';
@@ -53,6 +54,7 @@ const Finanzas = () => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pagoProyecto, setPagoProyecto] = useState(null);
   const [pagoDialogOpen, setPagoDialogOpen] = useState(false);
+  const [multiOpen, setMultiOpen] = useState(false);
   const [chartData, setChartData] = useState([]);
   const [loadingCharts, setLoadingCharts] = useState(true);
   const [proyectosParaCuentas, setProyectosParaCuentas] = useState([]);
@@ -533,6 +535,9 @@ const Finanzas = () => {
             <Button onClick={handleOpenMovimiento} className="bg-blue-600 hover:bg-blue-700 gap-2">
               <Plus className="w-4 h-4" /> Registrar Movimiento
             </Button>
+            <Button variant="outline" onClick={() => setMultiOpen(true)} className="gap-2">
+              <Plus className="w-4 h-4" /> Pago a varios proyectos
+            </Button>
             <Button variant="outline" onClick={() => setGastoDialogOpen(true)} className="gap-2">
               <Plus className="w-4 h-4" /> Registrar Gasto
             </Button>
@@ -1001,6 +1006,12 @@ const Finanzas = () => {
           onSave={() => { fetchDatos(); fetchChartData(); fetchDatosCuentasPorCobrar(); setPagoDialogOpen(false); setPagoProyecto(null); }}
         />
       )}
+
+      <PagoMultiProyectoDialog
+        open={multiOpen}
+        onOpenChange={setMultiOpen}
+        onSaved={() => { fetchDatos(); fetchChartData(); fetchDatosCuentasPorCobrar(); setMultiOpen(false); }}
+      />
 
       <RegistrarFacturaDialog
         open={!!facturaProyecto}
