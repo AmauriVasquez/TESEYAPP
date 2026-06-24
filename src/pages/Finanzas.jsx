@@ -50,11 +50,15 @@ const Finanzas = () => {
     to: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
   }));
   const [gastoDialogOpen, setGastoDialogOpen] = useState(false);
-  const [proyectosOptions, setProyectosOptions] = useState([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pagoProyecto, setPagoProyecto] = useState(null);
   const [pagoDialogOpen, setPagoDialogOpen] = useState(false);
   const [multiOpen, setMultiOpen] = useState(false);
+  const [clienteSel, setClienteSel] = useState('');
+  const [clientesOpts, setClientesOpts] = useState([]);
+  const [proyectosCliente, setProyectosCliente] = useState([]);
+  const [selProyectos, setSelProyectos] = useState([]);
+  const [preMulti, setPreMulti] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [loadingCharts, setLoadingCharts] = useState(true);
   const [proyectosParaCuentas, setProyectosParaCuentas] = useState([]);
@@ -397,26 +401,50 @@ const Finanzas = () => {
 
   const handleOpenMovimiento = () => {
     setPickerOpen(true);
-    supabase
-      .from('proyectos')
-      .select('id, folio, descripcion')
-      .order('id', { ascending: false })
-      .then(({ data }) => {
-        setProyectosOptions((data || []).map((p) => ({ value: String(p.id), label: `${p.folio} – ${p.descripcion}` })));
-      });
+    setClienteSel('');
+    setProyectosCliente([]);
+    setSelProyectos([]);
+    supabase.from('clientes').select('id, nombre').order('nombre').then(({ data }) => {
+      setClientesOpts((data || []).map((c) => ({ value: String(c.id), label: c.nombre })));
+    });
   };
 
-  const handlePickProyecto = async (value) => {
-    if (!value) return;
-    const { data } = await supabase
+  const cargarProyectosCliente = async (clienteId) => {
+    setSelProyectos([]);
+    const { data: proys } = await supabase
       .from('proyectos')
-      .select('id, folio, descripcion, costo_total, cotizacion_id, requiere_cfdi, cliente_id')
-      .eq('id', parseInt(value, 10))
-      .single();
-    if (!data) { toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cargar el proyecto.' }); return; }
-    setPagoProyecto(data);
-    setPickerOpen(false);
-    setPagoDialogOpen(true);
+      .select('id, folio, descripcion, cotizacion_folio, costo_total, cotizacion_id, requiere_cfdi, cliente:cliente_id(nombre)')
+      .eq('cliente_id', parseInt(clienteId, 10));
+    const ids = (proys || []).map((p) => p.id);
+    const { data: prog } = ids.length
+      ? await supabase.from('v_proyecto_pago_progreso').select('proyecto_id, costo_total, total_pagado').in('proyecto_id', ids)
+      : { data: [] };
+    const saldoPorProy = (prog || []).reduce((a, r) => { a[r.proyecto_id] = Number(r.costo_total || 0) - Number(r.total_pagado || 0); return a; }, {});
+    const lista = (proys || [])
+      .map((p) => ({ ...p, saldo: Math.round((saldoPorProy[p.id] ?? Number(p.costo_total || 0)) * 100) / 100 }))
+      .filter((p) => p.saldo > 1);
+    setProyectosCliente(lista);
+  };
+
+  const handleContinuarCobro = async () => {
+    if (selProyectos.length === 1) {
+      const pMatch = proyectosCliente.find((x) => String(x.id) === selProyectos[0]);
+      if (!pMatch) return;
+      const { data } = await supabase
+        .from('proyectos')
+        .select('id, folio, descripcion, costo_total, cotizacion_id, requiere_cfdi, cotizacion_folio, cliente:cliente_id(nombre), cliente_nombre_externo')
+        .eq('id', pMatch.id)
+        .single();
+      if (!data) { toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cargar el proyecto.' }); return; }
+      setPagoProyecto(data);
+      setPickerOpen(false);
+      setPagoDialogOpen(true);
+    } else if (selProyectos.length > 1) {
+      const pre = proyectosCliente.filter((x) => selProyectos.includes(String(x.id))).map((x) => ({ id: x.id, folio: x.folio, descripcion: x.descripcion }));
+      setPreMulti(pre);
+      setPickerOpen(false);
+      setMultiOpen(true);
+    }
   };
 
   /** Una sola carga: proyectos con cotización + todos los pagos. Cálculo pesado en useMemo. */
@@ -544,9 +572,6 @@ const Finanzas = () => {
             </div>
             <Button onClick={handleOpenMovimiento} className="bg-blue-600 hover:bg-blue-700 gap-2">
               <Plus className="w-4 h-4" /> Registrar Movimiento
-            </Button>
-            <Button variant="outline" onClick={() => setMultiOpen(true)} className="gap-2">
-              <Plus className="w-4 h-4" /> Pago a varios proyectos
             </Button>
             <Button variant="outline" onClick={() => setGastoDialogOpen(true)} className="gap-2">
               <Plus className="w-4 h-4" /> Registrar Gasto
@@ -1009,11 +1034,38 @@ const Finanzas = () => {
       </Dialog>
 
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-        <DialogContent className="w-[100vw] max-w-md sm:w-full">
-          <DialogHeader><DialogTitle>Registrar Movimiento — elige proyecto</DialogTitle></DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label>Proyecto *</Label>
-            <Combobox options={proyectosOptions} value="" onChange={handlePickProyecto} placeholder="Buscar proyecto..." searchPlaceholder="Buscar por folio o descripción..." notFoundMessage="Ningún proyecto encontrado." />
+        <DialogContent className="w-[100vw] max-w-lg sm:w-full max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Registrar Movimiento — elige cliente</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Cliente *</Label>
+              <Combobox options={clientesOpts} value={clienteSel} onChange={(v) => { setClienteSel(v); cargarProyectosCliente(v); }} placeholder="Buscar cliente..." searchPlaceholder="Buscar por nombre..." notFoundMessage="Ningún cliente encontrado." />
+            </div>
+            {clienteSel && (
+              <div className="space-y-2">
+                <Label>Proyectos con saldo pendiente</Label>
+                {proyectosCliente.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-2">No hay proyectos con saldo pendiente para este cliente.</p>
+                ) : (
+                  <>
+                    {proyectosCliente.map((p) => {
+                      const checked = selProyectos.includes(String(p.id));
+                      return (
+                        <label key={p.id} className="flex items-center gap-2 p-2 border rounded cursor-pointer">
+                          <input type="checkbox" checked={checked} onChange={(e) => setSelProyectos((s) => e.target.checked ? [...s, String(p.id)] : s.filter((x) => x !== String(p.id)))} />
+                          <span className="flex-1 text-sm">{p.descripcion} <span className="text-gray-400 font-mono text-xs">({p.cotizacion_folio || `COT-${p.cotizacion_id}`} / {p.folio})</span></span>
+                          <span className="text-xs text-amber-700">${p.saldo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                        </label>
+                      );
+                    })}
+                    <div className="flex justify-between items-center pt-2 border-t">
+                      <span className="text-sm text-gray-600">{selProyectos.length} proyecto(s) · ${proyectosCliente.filter(p => selProyectos.includes(String(p.id))).reduce((s,p)=>s+p.saldo,0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                      <Button disabled={selProyectos.length === 0} onClick={handleContinuarCobro}>Continuar</Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -1030,8 +1082,9 @@ const Finanzas = () => {
 
       <PagoMultiProyectoDialog
         open={multiOpen}
-        onOpenChange={setMultiOpen}
-        onSaved={() => { fetchDatos(); fetchChartData(); fetchDatosCuentasPorCobrar(); setMultiOpen(false); }}
+        onOpenChange={(o) => { setMultiOpen(o); if (!o) setPreMulti([]); }}
+        onSaved={() => { fetchDatos(); fetchChartData(); fetchDatosCuentasPorCobrar(); setMultiOpen(false); setPreMulti([]); }}
+        preProyectos={preMulti}
       />
 
       <RegistrarFacturaDialog

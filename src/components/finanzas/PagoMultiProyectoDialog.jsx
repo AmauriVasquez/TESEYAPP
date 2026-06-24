@@ -21,7 +21,7 @@ const ENTIDADES = [
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 const money = (n) => Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
-export default function PagoMultiProyectoDialog({ open, onOpenChange, onSaved }) {
+export default function PagoMultiProyectoDialog({ open, onOpenChange, onSaved, preProyectos = [] }) {
   const { toast } = useToast();
   const [fecha, setFecha] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [cuentaValue, setCuentaValue] = useState('');
@@ -38,8 +38,20 @@ export default function PagoMultiProyectoDialog({ open, onOpenChange, onSaved })
     if (!open) return;
     /* eslint-disable react-hooks/set-state-in-effect */
     setFecha(format(new Date(), 'yyyy-MM-dd'));
-    setCuentaValue(''); setRows([{ proyectoId: '', monto: '' }]); setSaldos({});
+    setCuentaValue(''); setSaldos({});
     setYaFacturado(false); setFacturaNumero(''); setFacturaFecha(format(new Date(), 'yyyy-MM-dd')); setFacturaEmisora('tesey');
+    if (preProyectos && preProyectos.length) {
+      setRows(preProyectos.map((p) => ({ proyectoId: String(p.id), monto: '' })));
+      // Preload saldos for preconfigured projects
+      const preIds = preProyectos.map((p) => p.id);
+      supabase.from('v_proyecto_pago_progreso').select('proyecto_id, costo_total, total_pagado').in('proyecto_id', preIds).then(({ data }) => {
+        const newSaldos = {};
+        (data || []).forEach((r) => { newSaldos[r.proyecto_id] = round2(Number(r.costo_total || 0) - Number(r.total_pagado || 0)); });
+        setSaldos((s) => ({ ...s, ...newSaldos }));
+      });
+    } else {
+      setRows([{ proyectoId: '', monto: '' }]);
+    }
     /* eslint-enable react-hooks/set-state-in-effect */
     supabase.from('proyectos').select('id, folio, descripcion').order('id', { ascending: false }).then(({ data }) => {
       setOpciones((data || []).map((p) => ({ value: String(p.id), label: `${p.folio} – ${p.descripcion}` })));
