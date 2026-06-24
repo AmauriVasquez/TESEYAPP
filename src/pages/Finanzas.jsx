@@ -123,6 +123,14 @@ const Finanzas = () => {
     [gastos]
   );
   const balance = useMemo(() => Number(totalIngresos) - Number(totalGastos), [totalIngresos, totalGastos]);
+  const subtotalPeriodo = useMemo(
+    () => (ingresosConProyecto || []).reduce((s, i) => s + desglosePago(i.monto, i.aplica_iva).subtotal, 0),
+    [ingresosConProyecto]
+  );
+  const ivaPeriodo = useMemo(
+    () => (ingresosConProyecto || []).reduce((s, i) => s + desglosePago(i.monto, i.aplica_iva).iva, 0),
+    [ingresosConProyecto]
+  );
 
   /** Cuentas por cobrar: solo proyectos activos/entregados con saldo > $1. Matemática: Saldo = Costo Total - Suma pagos. */
   const cuentasPorCobrar = useMemo(() => {
@@ -552,7 +560,7 @@ const Finanzas = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
               <div className="p-4 rounded-lg bg-green-50 border border-green-100">
                 <p className="text-sm font-medium text-green-700">Ingresos Totales</p>
                 <p className="text-2xl font-bold text-green-800">${Number(totalIngresos || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
@@ -573,6 +581,16 @@ const Finanzas = () => {
               <div className="p-4 rounded-lg bg-amber-50 border border-amber-100">
                 <p className="text-sm font-medium text-amber-700">Cuentas por Cobrar</p>
                 <p className="text-2xl font-bold text-amber-800">${Number(cuentasPorCobrarTotal || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+              </div>
+              <div className="p-4 rounded-lg bg-slate-50 border border-slate-100">
+                <p className="text-sm font-medium text-slate-700">Ingresos sin IVA (subtotal)</p>
+                <p className="text-2xl font-bold text-slate-800">${Number(subtotalPeriodo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                <p className="text-xs text-gray-500 mt-1">{periodoLabel}</p>
+              </div>
+              <div className="p-4 rounded-lg bg-purple-50 border border-purple-100">
+                <p className="text-sm font-medium text-purple-700">IVA del periodo</p>
+                <p className="text-2xl font-bold text-purple-800">${Number(ivaPeriodo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                <p className="text-xs text-gray-500 mt-1">{periodoLabel}</p>
               </div>
             </div>
             <Tabs defaultValue="ingresos" className="space-y-2">
