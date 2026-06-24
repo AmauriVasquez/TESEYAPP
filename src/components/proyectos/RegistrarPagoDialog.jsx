@@ -17,6 +17,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { CUENTAS_PAGO, validarCobro, getCuenta, brandingToEntidad } from '@/config/cuentasPago';
 import { empresaLabel } from '@/lib/facturacionDisplay';
+import { usePermissions } from '@/contexts/PermissionsContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 const TIPOS_INGRESO = [
   { value: 'Anticipo', label: 'Anticipo' },
@@ -36,6 +39,8 @@ const clamp = (n) => Math.max(0, Math.min(100, n));
 
 const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: pagoEditar, onSave }) => {
   const { toast } = useToast();
+  const { can } = usePermissions();
+  const { user } = useAuth();
   const [monto, setMonto] = useState('');
   const [fechaPago, setFechaPago] = useState(null);
   const [metodoPago, setMetodoPago] = useState('');
@@ -51,6 +56,10 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
   const [pagadoActual, setPagadoActual] = useState(0);
   // Toggle "requiere factura"
   const [requiereCfdiLocal, setRequiereCfdiLocal] = useState(false);
+  // IVA button state
+  const [tieneFacturado, setTieneFacturado] = useState(false);
+  const [ivaConfirmOpen, setIvaConfirmOpen] = useState(false);
+  const [aplicandoIva, setAplicandoIva] = useState(false);
   // Sección "Ya facturado"
   const [yaFacturado, setYaFacturado] = useState(false);
   const [facturaNumero, setFacturaNumero] = useState('');
@@ -87,6 +96,12 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
   );
 
   const cuentaEntidad = getCuenta(metodoPago)?.entidad ?? null;
+
+  // Derived values for +IVA button
+  const puedeAgregarIva = can('cotizaciones', 'editar') && tieneCotizacion && cotizacionIva && cotizacionIva.aplica_iva === false;
+  const ivaSubtotal = round2(cotizacionIva?.total ?? 0);
+  const ivaMonto = round2(ivaSubtotal * 0.16);
+  const ivaNuevoTotal = round2(ivaSubtotal * 1.16);
 
   useEffect(() => {
     if (!open) return;
@@ -149,6 +164,15 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
     });
     return () => { cancelled = true; };
   }, [open, proyectoId, pagoEditar]);
+
+  // Check if project has any invoiced payment (for IVA button guard)
+  useEffect(() => {
+    if (!open || !proyectoId) { setTieneFacturado(false); return; }
+    let cancelled = false;
+    supabase.from('proyecto_pagos').select('id, factura_id').eq('proyecto_id', proyectoId).not('factura_id', 'is', null).limit(1)
+      .then(({ data }) => { if (!cancelled) setTieneFacturado((data || []).length > 0); });
+    return () => { cancelled = true; };
+  }, [open, proyectoId]);
 
   const isAnticipoPartida = tipoIngreso === 'Anticipo por Partida';
   useEffect(() => {
@@ -485,7 +509,7 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
                 <div className="flex justify-between text-sm"><span className="text-gray-600">Subtotal</span><span className="font-medium">${money(subtotal)}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">IVA</span><span className="font-medium">${money(ivaProyecto)}</span></div>
                 <div className="flex justify-between text-base font-bold pt-2 border-t"><span>Total</span><span className="text-green-700">${money(totalProyecto)}</span></div>
-                <p className="text-[11px] text-gray-400">{aplicaIva ? 'IVA incluido' : 'Sin IVA'} · el IVA solo se cambia en la cotización</p>
+                <p className="text-[11px] text-gray-400">{aplicaIva ? 'IVA incluido' : 'Sin IVA'}</p>
               </div>
             )}
 
@@ -516,8 +540,60 @@ const RegistrarPagoDialog = ({ open, onOpenChange, proyectoId, proyecto, pago: p
                 )}
               </div>
             )}
+
+            {/* Botón "Agregar IVA al precio" — solo si sin IVA + permiso */}
+            {puedeAgregarIva && (
+              <div className="rounded-lg border border-amber-200 p-3 space-y-2">
+                <p className="text-sm font-medium text-amber-800">Este proyecto está sin IVA</p>
+                <Button type="button" variant="outline" className="w-full" disabled={tieneFacturado || aplicandoIva}
+                  onClick={() => setIvaConfirmOpen(true)}>
+                  Agregar IVA al precio (+16%)
+                </Button>
+                {tieneFacturado && <p className="text-xs text-red-600">No se puede: ya hay un cobro facturado.</p>}
+              </div>
+            )}
           </div>
         </div>
+
+        <AlertDialog open={ivaConfirmOpen} onOpenChange={setIvaConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Agregar IVA al precio</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-1">
+                  <p>El total del proyecto cambiará:</p>
+                  <p className="font-semibold">${money(ivaSubtotal)} → ${money(ivaNuevoTotal)} (+${money(ivaMonto)} de IVA)</p>
+                  <p className="text-amber-700">Esto cambia el precio acordado y marca el proyecto como facturable.</p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={aplicandoIva}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-amber-600 hover:bg-amber-700"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  setAplicandoIva(true);
+                  try {
+                    const { error: e1 } = await supabase.from('cotizaciones').update({ aplica_iva: true, total: ivaNuevoTotal, iva_aplicado_por: user?.id ?? null, iva_aplicado_at: new Date().toISOString() }).eq('id', proyecto.cotizacion_id);
+                    if (e1) throw e1;
+                    const { error: e2 } = await supabase.from('proyectos').update({ requiere_cfdi: true, costo_total: ivaNuevoTotal }).eq('id', proyecto.id);
+                    if (e2) throw e2;
+                    setCotizacionIva((c) => c ? { ...c, aplica_iva: true, total: ivaNuevoTotal } : c);
+                    toast({ title: '✅ IVA agregado al precio' });
+                    setIvaConfirmOpen(false);
+                    onSave?.();
+                  } catch (err) {
+                    toast({ variant: 'destructive', title: 'Error', description: err.message });
+                  } finally {
+                    setAplicandoIva(false);
+                  }
+                }}>
+                Confirmar y agregar IVA
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <DialogFooter className="flex flex-row flex-wrap gap-2 sm:justify-between pt-4 border-t mt-4">
           <div className="flex items-center gap-2 order-2 sm:order-1">
