@@ -41,7 +41,7 @@ Mejoras pedidas por el equipo tras usar el módulo: ver Cliente/Cotización en e
 ### 2.3 Modal de pago: mostrar Cliente y Cotización + toggle "requiere factura" (`RegistrarPagoDialog.jsx`)
 - En el bloque "Estatus del Proyecto" (junto a Empresa + Cuenta receptora), agregar dos lecturas: **Cliente** (`proyecto.cliente?.nombre` / nombre que provea el caller) y **Cotización** (folio).
   - Asegurar que el caller pase `cliente`/folio: la consulta de cotización del modal ya trae datos; ampliarla a `folio`; el cliente se toma de `proyecto.cliente?.nombre` o se consulta por `cliente_id`.
-- **Toggle "El cliente requiere factura"** (Switch), iniciado de `proyecto.requiere_cfdi`. Al cambiarlo: `UPDATE proyectos SET requiere_cfdi = <valor> WHERE id` inmediato + toast. **No** toca precio. Esto cubre el 90% de "sí/no factura".
+- **Toggle "El cliente requiere factura"** (Switch), iniciado de `proyecto.requiere_cfdi`. Cambia un estado local; **se persiste al dar "Guardar Pago"**: si el valor difiere del original, en `doSave()` se hace `UPDATE proyectos SET requiere_cfdi = <valor> WHERE id` además de insertar el cobro. **No** toca precio. Esto cubre el 90% de "sí/no factura". (Nota: en modo edición de un pago existente también aplica el guardado del toggle.)
 
 ---
 
@@ -99,7 +99,7 @@ ALTER TABLE cotizaciones
 ## 6. Riesgos vivos (vigilar)
 1. **El +IVA sigue siendo el único write destructivo.** Guardas: solo sin-IVA, bloqueo si facturado, confirmación, permiso, idempotente. Probar los tres bloqueos explícitamente.
 2. **Control interno:** quien puede subir un precio aceptado queda limitado a permiso de editar cotizaciones; la columna `iva_aplicado_por/at` deja rastro.
-3. **Toggle `requiere_cfdi` inmediato:** asegurar que no choque con el flujo "ya facturado"/bandera de la tabla (es el mismo campo).
+3. **Toggle `requiere_cfdi` (se guarda con el pago):** asegurar que no choque con el flujo "ya facturado"/bandera de la tabla (es el mismo campo).
 4. **Cliente-first sin `cliente_id` en la vista:** se resuelve con join `proyectos` + `v_proyecto_pago_progreso` (no requiere vista nueva).
 5. **Precarga del multi-modal:** el prop `preProyectos` debe no romper el uso actual (sin prop = comportamiento de hoy).
 6. **Tercer cambio sin uso real:** F1/F2 son seguras de enviar ya; F3 conviene QA cuidadoso.
