@@ -59,6 +59,7 @@ const Finanzas = () => {
   const [proyectosCliente, setProyectosCliente] = useState([]);
   const [selProyectos, setSelProyectos] = useState([]);
   const [preMulti, setPreMulti] = useState([]);
+  const [multiCliente, setMultiCliente] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [loadingCharts, setLoadingCharts] = useState(true);
   const [proyectosParaCuentas, setProyectosParaCuentas] = useState([]);
@@ -442,6 +443,7 @@ const Finanzas = () => {
     } else if (selProyectos.length > 1) {
       const pre = proyectosCliente.filter((x) => selProyectos.includes(String(x.id))).map((x) => ({ id: x.id, folio: x.folio, descripcion: x.descripcion }));
       setPreMulti(pre);
+      setMultiCliente(proyectosCliente.map((x) => ({ id: x.id, folio: x.folio, descripcion: x.descripcion, saldo: x.saldo })));
       setPickerOpen(false);
       setMultiOpen(true);
     }
@@ -1082,9 +1084,10 @@ const Finanzas = () => {
 
       <PagoMultiProyectoDialog
         open={multiOpen}
-        onOpenChange={(o) => { setMultiOpen(o); if (!o) setPreMulti([]); }}
-        onSaved={() => { fetchDatos(); fetchChartData(); fetchDatosCuentasPorCobrar(); setMultiOpen(false); setPreMulti([]); }}
+        onOpenChange={(o) => { setMultiOpen(o); if (!o) { setPreMulti([]); setMultiCliente([]); } }}
+        onSaved={() => { fetchDatos(); fetchChartData(); fetchDatosCuentasPorCobrar(); setMultiOpen(false); setPreMulti([]); setMultiCliente([]); }}
         preProyectos={preMulti}
+        proyectosCliente={multiCliente}
       />
 
       <RegistrarFacturaDialog

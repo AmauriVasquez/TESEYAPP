@@ -8,8 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Combobox } from '@/components/ui/combobox';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/lib/customSupabaseClient';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { registrarPagoMultiProyecto } from '@/services/facturasService';
 import { CUENTAS_PAGO } from '@/config/cuentasPago';
 import { format } from 'date-fns';
@@ -21,57 +20,80 @@ const ENTIDADES = [
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 const money = (n) => Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
-export default function PagoMultiProyectoDialog({ open, onOpenChange, onSaved, preProyectos = [] }) {
+/**
+ * preProyectos: [{ id, folio, descripcion }] preseleccionados.
+ * proyectosCliente: [{ id, folio, descripcion, saldo }] del cliente con saldo>0
+ *   (alimenta el picker "Agregar proyecto" y el saldo de cada fila).
+ */
+export default function PagoMultiProyectoDialog({ open, onOpenChange, onSaved, preProyectos = [], proyectosCliente = [] }) {
   const { toast } = useToast();
   const [fecha, setFecha] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [cuentaValue, setCuentaValue] = useState('');
-  const [rows, setRows] = useState([{ proyectoId: '', monto: '' }]);
-  const [opciones, setOpciones] = useState([]);
-  const [saldos, setSaldos] = useState({}); // proyectoId -> saldo
+  const [rows, setRows] = useState([]); // [{ proyectoId }]
+  const [montos, setMontos] = useState({}); // proyectoId -> monto (string)
+  const [saldosFallback, setSaldosFallback] = useState({});
   const [yaFacturado, setYaFacturado] = useState(false);
   const [facturaNumero, setFacturaNumero] = useState('');
   const [facturaFecha, setFacturaFecha] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [facturaEmisora, setFacturaEmisora] = useState('tesey');
   const [saving, setSaving] = useState(false);
 
+  // Mapa de info por proyecto (label + saldo), combinando proyectosCliente y preProyectos.
+  const proyById = useMemo(() => {
+    const m = {};
+    (proyectosCliente || []).forEach((p) => { m[String(p.id)] = { folio: p.folio, descripcion: p.descripcion, saldo: round2(p.saldo) }; });
+    (preProyectos || []).forEach((p) => { if (!m[String(p.id)]) m[String(p.id)] = { folio: p.folio, descripcion: p.descripcion, saldo: undefined }; });
+    return m;
+  }, [proyectosCliente, preProyectos]);
+
   useEffect(() => {
     if (!open) return;
     /* eslint-disable react-hooks/set-state-in-effect */
     setFecha(format(new Date(), 'yyyy-MM-dd'));
-    setCuentaValue(''); setSaldos({});
+    setCuentaValue(''); setMontos({}); setSaldosFallback({});
     setYaFacturado(false); setFacturaNumero(''); setFacturaFecha(format(new Date(), 'yyyy-MM-dd')); setFacturaEmisora('tesey');
-    if (preProyectos && preProyectos.length) {
-      setRows(preProyectos.map((p) => ({ proyectoId: String(p.id), monto: '' })));
-      // Preload saldos for preconfigured projects
-      const preIds = preProyectos.map((p) => p.id);
-      supabase.from('v_proyecto_pago_progreso').select('proyecto_id, costo_total, total_pagado').in('proyecto_id', preIds).then(({ data }) => {
-        const newSaldos = {};
-        (data || []).forEach((r) => { newSaldos[r.proyecto_id] = round2(Number(r.costo_total || 0) - Number(r.total_pagado || 0)); });
-        setSaldos((s) => ({ ...s, ...newSaldos }));
-      });
-    } else {
-      setRows([{ proyectoId: '', monto: '' }]);
-    }
+    setRows((preProyectos || []).map((p) => ({ proyectoId: String(p.id) })));
     /* eslint-enable react-hooks/set-state-in-effect */
-    supabase.from('proyectos').select('id, folio, descripcion').order('id', { ascending: false }).then(({ data }) => {
-      setOpciones((data || []).map((p) => ({ value: String(p.id), label: `${p.folio} – ${p.descripcion}` })));
-    });
   }, [open]);
 
-  const total = useMemo(() => round2(rows.reduce((s, r) => s + Number(r.monto || 0), 0)), [rows]);
-
-  const cargarSaldo = async (proyectoId) => {
-    if (!proyectoId || saldos[proyectoId] !== undefined) return;
-    const { data } = await supabase.from('v_proyecto_pago_progreso').select('costo_total, total_pagado').eq('proyecto_id', proyectoId).single();
-    if (data) setSaldos((s) => ({ ...s, [proyectoId]: round2(Number(data.costo_total || 0) - Number(data.total_pagado || 0)) }));
+  const saldoDe = (id) => {
+    const s = proyById[String(id)]?.saldo;
+    return s !== undefined ? s : saldosFallback[String(id)];
   };
 
-  const setRow = (idx, patch) => setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
-  const addRow = () => setRows((rs) => [...rs, { proyectoId: '', monto: '' }]);
-  const removeRow = (idx) => setRows((rs) => (rs.length > 1 ? rs.filter((_, i) => i !== idx) : rs));
+  const labelDe = (id) => {
+    const p = proyById[String(id)];
+    return p ? `${p.descripcion || ''} (${p.folio || `PRJ-${id}`})` : `Proyecto ${id}`;
+  };
+
+  // Opciones para "Agregar proyecto": proyectos del cliente con saldo, no agregados aún.
+  const opcionesAdd = useMemo(() => {
+    const usados = new Set(rows.map((r) => String(r.proyectoId)));
+    return (proyectosCliente || [])
+      .filter((p) => !usados.has(String(p.id)))
+      .map((p) => ({ value: String(p.id), label: `${p.descripcion || ''} (${p.folio || `PRJ-${p.id}`})` }));
+  }, [proyectosCliente, rows]);
+
+  const total = useMemo(
+    () => round2(rows.reduce((s, r) => s + Number(montos[r.proyectoId] || 0), 0)),
+    [rows, montos]
+  );
+
+  const setMonto = (id, val) => setMontos((m) => ({ ...m, [String(id)]: val }));
+  const liquidar = (id) => { const s = saldoDe(id); if (s !== undefined) setMonto(id, String(s)); };
+  const liquidarTodo = () => setMontos(() => {
+    const m = {};
+    rows.forEach((r) => { const s = saldoDe(r.proyectoId); if (s !== undefined) m[r.proyectoId] = String(s); });
+    return m;
+  });
+  const addProyecto = (id) => {
+    if (!id) return;
+    setRows((rs) => (rs.some((r) => String(r.proyectoId) === String(id)) ? rs : [...rs, { proyectoId: String(id) }]));
+  };
+  const removeRow = (id) => { setRows((rs) => rs.filter((r) => String(r.proyectoId) !== String(id))); setMontos((m) => { const n = { ...m }; delete n[String(id)]; return n; }); };
 
   const handleGuardar = async () => {
-    const validas = rows.filter((r) => r.proyectoId && Number(r.monto) > 0);
+    const validas = rows.filter((r) => r.proyectoId && Number(montos[r.proyectoId]) > 0);
     if (validas.length === 0) { toast({ variant: 'destructive', title: 'Faltan datos', description: 'Agrega al menos un proyecto con monto.' }); return; }
     if (!cuentaValue) { toast({ variant: 'destructive', title: 'Falta la cuenta', description: 'Elige el método/cuenta de pago.' }); return; }
     if (yaFacturado && (!facturaNumero.trim() || !facturaFecha)) { toast({ variant: 'destructive', title: 'Falta la factura', description: 'Folio y fecha son obligatorios si marcas "Ya facturado".' }); return; }
@@ -79,7 +101,7 @@ export default function PagoMultiProyectoDialog({ open, onOpenChange, onSaved, p
     const { error } = await registrarPagoMultiProyecto({
       fecha,
       cuentaValue,
-      asignaciones: validas.map((r) => ({ proyectoId: parseInt(r.proyectoId, 10), monto: Number(r.monto) })),
+      asignaciones: validas.map((r) => ({ proyectoId: parseInt(r.proyectoId, 10), monto: Number(montos[r.proyectoId]) })),
       factura: yaFacturado ? { numero: facturaNumero.trim(), fecha: facturaFecha, emisora: facturaEmisora } : null,
     });
     setSaving(false);
@@ -109,31 +131,46 @@ export default function PagoMultiProyectoDialog({ open, onOpenChange, onSaved, p
           </div>
 
           <div className="space-y-2">
-            <Label>Desglose por proyecto</Label>
-            {rows.map((r, idx) => {
-              const saldo = r.proyectoId ? saldos[r.proyectoId] : undefined;
-              const excede = saldo !== undefined && Number(r.monto || 0) > saldo;
+            <div className="flex items-center justify-between">
+              <Label>Proyectos a pagar</Label>
+              {rows.length > 1 && (
+                <Button type="button" variant="ghost" size="sm" className="text-green-700 h-7" onClick={liquidarTodo}>Liquidar todo</Button>
+              )}
+            </div>
+            {rows.length === 0 && <p className="text-sm text-gray-400">Agrega un proyecto abajo.</p>}
+            {rows.map((r) => {
+              const saldo = saldoDe(r.proyectoId);
+              const monto = montos[r.proyectoId] ?? '';
+              const excede = saldo !== undefined && Number(monto || 0) > saldo;
               return (
-                <div key={idx} className="space-y-1">
-                  <div className="flex gap-2 items-start">
-                    <div className="flex-1">
-                      <Combobox
-                        options={opciones}
-                        value={r.proyectoId}
-                        onChange={(v) => { setRow(idx, { proyectoId: v }); cargarSaldo(v); }}
-                        placeholder="Proyecto..."
-                        searchPlaceholder="Buscar por folio/descripción..."
-                        notFoundMessage="Ningún proyecto."
-                      />
+                <div key={r.proyectoId} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium flex-1">{labelDe(r.proyectoId)}</p>
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeRow(r.proyectoId)}><Trash2 className="w-4 h-4" /></Button>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-amber-700">Saldo: ${money(saldo ?? 0)}</span>
+                    <div className="flex items-center gap-2">
+                      {saldo !== undefined && (
+                        <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => liquidar(r.proyectoId)}>Liquidar</Button>
+                      )}
+                      <Input type="number" step="0.01" className="w-32" value={monto} onChange={(e) => setMonto(r.proyectoId, e.target.value)} placeholder="0.00" />
                     </div>
-                    <Input type="number" step="0.01" className="w-32" value={r.monto} onChange={(e) => setRow(idx, { monto: e.target.value })} placeholder="0.00" />
-                    <Button type="button" variant="ghost" size="icon" className="h-9 w-9" onClick={() => removeRow(idx)} disabled={rows.length === 1}><Trash2 className="w-4 h-4" /></Button>
                   </div>
                   {excede && <p className="text-xs text-amber-600">⚠️ Excede el saldo del proyecto (${money(saldo)}).</p>}
                 </div>
               );
             })}
-            <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={addRow}><Plus className="w-4 h-4" /> Agregar proyecto</Button>
+            {opcionesAdd.length > 0 && (
+              <Combobox
+                options={opcionesAdd}
+                value=""
+                onChange={addProyecto}
+                placeholder="+ Agregar otro proyecto del cliente..."
+                searchPlaceholder="Buscar por folio/descripción..."
+                notFoundMessage="Sin más proyectos con saldo."
+              />
+            )}
           </div>
 
           <div className="flex justify-between items-center border-t pt-2 font-semibold">
