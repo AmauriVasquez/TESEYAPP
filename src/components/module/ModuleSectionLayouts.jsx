@@ -23,6 +23,7 @@ import {
   CalendarClock,
   LayoutDashboard,
   Coins,
+  ListChecks,
 } from 'lucide-react';
 
 export function ComprasModuleLayout() {
@@ -119,6 +120,7 @@ export function OperacionesModuleLayout() {
           icon: FolderKanban,
           isActive: (p) => p.startsWith('/operaciones/proyectos'),
         },
+        { to: '/operaciones/tareas', label: 'Tareas', icon: ListChecks },
       ]}
     >
       <Outlet />

@@ -24,6 +24,7 @@ import AdminUsuarios from '@/pages/AdminUsuarios';
 import VentasDashboard from '@/pages/VentasDashboard';
 import Inventario from '@/pages/Inventario';
 import ControlCostos from '@/pages/ControlCostos';
+import OperacionesTareas from '@/pages/OperacionesTareas';
 import ActivosOperativoSeccion from '@/pages/ActivosOperativoSeccion';
 import ToolsManager from '@/components/tools/ToolsManager';
 import {
@@ -287,6 +288,14 @@ function App() {
                   element={
                     <ProtectedRoute requiredPermission={{ modulo: 'proyectos', accion: 'ver' }}>
                       <ProyectoDetalle />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="tareas"
+                  element={
+                    <ProtectedRoute requiredPermission={{ modulo: 'operaciones', accion: 'ver' }}>
+                      <OperacionesTareas />
                     </ProtectedRoute>
                   }
                 />
