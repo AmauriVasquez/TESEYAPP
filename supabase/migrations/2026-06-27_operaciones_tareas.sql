@@ -161,3 +161,7 @@ begin
   where id = p_tarea_id;
 end;
 $function$;
+
+-- 7) Hardening: anon nunca debe llamar estas RPC (los usuarios logueados sí; guard interno).
+revoke execute on function public.operaciones_empleados_asignables() from anon;
+revoke execute on function public.tarea_mover_estado(uuid, text) from anon;
