@@ -78,11 +78,14 @@ const ROLE_PERMISSIONS = {
     proyecto_materiales: { ver: true, crear: false, editar: true, eliminar: false },
     'compras.pedidos': { ver: true, crear: true, editar: false, eliminar: false },
     entregas: { ver: true, crear: false, editar: true, eliminar: false },
+    operaciones: { ver: true, crear: true, editar: true, eliminar: false },
+    'operaciones.todos': { ver: true, crear: false, editar: false, eliminar: false },
   },
   OPERADOR: {
     proyectos: { ver: true, crear: false, editar: false, eliminar: false },
     proyecto_bitacora: { ver: true, crear: true, editar: false, eliminar: false },
     proyecto_archivos: { ver: true, crear: false, editar: false, eliminar: false },
+    operaciones: { ver: true, crear: false, editar: false, eliminar: false },
   },
 };
 
