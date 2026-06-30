@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 import { uploadBitacoraImage } from '@/lib/bitacoraUpload';
 import { format, parseISO } from 'date-fns';
 import { formatDateTable } from '@/lib/dateUtils';
-import { getApiBase } from '@/lib/apiUrl';
+import { syncProyectoEvento, eliminarEvento } from '@/lib/calendarApi';
 import { fetchPedidoMaterialesByIdCompat } from '@/lib/supabasePedidosCompat';
 import { unidadImpresionPedidoItem, descripcionImpresionPedidoItem } from '@/lib/pedidoMaterialesItemHelpers';
 import { es } from 'date-fns/locale';
@@ -275,8 +275,6 @@ const ProyectoDetalle = () => {
     return bitacora.filter((i) => bitacoraTipoNormalizado(i.tipo) === bitacoraFiltro);
   }, [bitacora, bitacoraFiltro]);
 
-  const API_BASE = getApiBase();
-
   const requestEstatusChange = (nuevoEstatus) => {
     if (!nuevoEstatus || nuevoEstatus === proyecto?.estatus) return;
     setPendingConfirmEstatus(nuevoEstatus);
@@ -298,12 +296,7 @@ const ProyectoDetalle = () => {
 
     if (esTerminadoOEntregado && proyecto?.google_calendar_event_id) {
       try {
-        console.log('🚀 [FRONTEND] Solicitando eliminación del evento en Google Calendar...');
-        const endpoint = `${API_BASE}/api/calendar/event/${encodeURIComponent(proyecto.google_calendar_event_id)}`;
-        const res = await fetch(endpoint, { method: 'DELETE' });
-        if (res.ok) {
-          console.log('✅ Evento eliminado de Google Calendar');
-        }
+        await eliminarEvento(proyecto.google_calendar_event_id);
       } catch (err) {
         console.error('⚠️ No se pudo eliminar el evento de Google Calendar:', err);
       }
@@ -334,29 +327,9 @@ const ProyectoDetalle = () => {
 
       let googleEventId = null;
       try {
-        console.log('🚀 [FRONTEND] Enviando instrucción a Google Calendar...');
-        console.log('🔍 [DEBUG] URL Base detectada:', API_BASE || 'VACÍA (Usando ruta relativa)');
-        const endpoint = `${API_BASE}/api/calendar/sync-project`;
-        console.log('🔍 [DEBUG] URL Exacta a disparar:', endpoint);
-
-        const calendarResponse = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(proyectoParaCalendar),
-        });
-
-        const responseText = await calendarResponse.text();
-        console.log('🔍 [DEBUG] Status HTTP:', calendarResponse.status);
-        console.log('🔍 [DEBUG] Respuesta cruda del servidor:', responseText);
-
-        if (!calendarResponse.ok) {
-          throw new Error(`Fallo en servidor (HTTP ${calendarResponse.status}): ${responseText}`);
-        }
-
-        const calendarData = JSON.parse(responseText);
-        googleEventId = calendarData?.google_calendar_event_id ?? calendarData?.eventId ?? null;
+        googleEventId = await syncProyectoEvento(proyectoParaCalendar);
       } catch (err) {
-        console.error('🔥 [FRONTEND ERROR CRÍTICO] Falló la sincronización:', err);
+        console.error('🔥 [FRONTEND] Falló la sincronización con el calendario:', err);
         toast({
           variant: 'destructive',
           title: 'Calendario',
@@ -438,17 +411,7 @@ const ProyectoDetalle = () => {
     };
     let googleEventId = null;
     try {
-      const endpoint = `${getApiBase()}/api/calendar/sync-project`;
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadCalendar),
-      });
-      const text = await res.text();
-      if (res.ok) {
-        const data = JSON.parse(text);
-        googleEventId = data?.google_calendar_event_id ?? data?.eventId ?? null;
-      }
+      googleEventId = await syncProyectoEvento(payloadCalendar);
     } catch (_) {
       // Silencioso: se guarda la fecha en Supabase aunque falle el calendario
     }

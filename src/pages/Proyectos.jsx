@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Helmet } from 'react-helmet';
-import { Plus, Search, Loader2, CalendarCheck, PackageCheck, X } from 'lucide-react';
+import { Plus, Search, Loader2, PackageCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
-import { getApiBase } from '@/lib/apiUrl';
 import NuevoProyectoDialog from '@/components/proyectos/NuevoProyectoDialog';
 import EntregaMasivaModal from '@/components/proyectos/EntregaMasivaModal';
 import { notifyNewProject } from '@/services/TelegramService';
@@ -32,8 +31,7 @@ const Proyectos = () => {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
     const [projectToDelete, setProjectToDelete] = useState(null);
-    const [syncAllLoading, setSyncAllLoading] = useState(false);
-    
+
     // Filtros y Ordenamiento
     const [sortConfig, setSortConfig] = useState({ key: 'prioridad', direction: 'ascending' });
     const [statusFilter, setStatusFilter] = useState('activos');
@@ -134,90 +132,8 @@ const Proyectos = () => {
         clienteIdsSeleccion.length === 1 &&
         clienteIdsSeleccion[0] != null;
 
-    /** Sincronización masiva + limpieza: (1) Eliminar de Google los terminados/entregados con evento; (2) Crear en Google los activos sin evento. */
-    const syncAllToCalendar = async () => {
-        toast({ title: 'Sincronizando con Google Calendar...', description: 'Limpiando terminados y creando eventos activos.' });
-        setSyncAllLoading(true);
-        const API_BASE = getApiBase();
-        let eliminados = 0;
-        let creados = 0;
-
-        try {
-            // ——— FASE 1: Limpieza — Eliminar eventos de proyectos Terminado/Entregado que aún tengan ID en Google ———
-            const { data: proyectosAClean, error: errClean } = await supabase
-                .from('proyectos')
-                .select('id, google_calendar_event_id')
-                .in('estatus', ['Terminado', 'Entregado'])
-                .not('google_calendar_event_id', 'is', null);
-
-            if (!errClean && proyectosAClean?.length) {
-                for (const proyecto of proyectosAClean) {
-                    const eventId = proyecto.google_calendar_event_id;
-                    if (!eventId) continue;
-                    try {
-                        const res = await fetch(`${API_BASE}/api/calendar/event/${encodeURIComponent(eventId)}`, { method: 'DELETE' });
-                        if (res.ok) {
-                            await supabase.from('proyectos').update({ google_calendar_event_id: null }).eq('id', proyecto.id);
-                            eliminados++;
-                        }
-                    } catch (_) {
-                        // Continuar con el siguiente
-                    }
-                }
-            }
-
-            // ——— FASE 2: Sincronización — Crear en Google los proyectos activos con fechas y sin evento ———
-            const { data: proyectosSinSync, error: fetchError } = await supabase
-                .from('proyectos')
-                .select('id, folio, descripcion, fecha_inicio, fecha_fin, google_calendar_event_id, cliente_nombre_externo, cliente:cliente_id(nombre)')
-                .not('fecha_inicio', 'is', null)
-                .is('google_calendar_event_id', null)
-                .not('estatus', 'in', '("Terminado","Entregado")');
-
-            if (!fetchError && proyectosSinSync?.length) {
-                const endpoint = `${API_BASE}/api/calendar/sync-project`;
-                for (const proyecto of proyectosSinSync) {
-                    try {
-                        const payload = {
-                            id: proyecto.id,
-                            folio: proyecto.folio,
-                            descripcion: proyecto.descripcion || proyecto.cliente?.nombre || proyecto.cliente_nombre_externo || 'Sin descripción',
-                            fecha_inicio: proyecto.fecha_inicio?.split?.('T')[0] ?? proyecto.fecha_inicio,
-                            fecha_fin: proyecto.fecha_fin?.split?.('T')[0] ?? proyecto.fecha_fin,
-                            google_calendar_event_id: null,
-                        };
-                        const res = await fetch(endpoint, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload),
-                        });
-                        const text = await res.text();
-                        if (res.ok) {
-                            const data = JSON.parse(text);
-                            const eventId = data?.google_calendar_event_id ?? data?.eventId ?? null;
-                            if (eventId) {
-                                await supabase.from('proyectos').update({ google_calendar_event_id: eventId }).eq('id', proyecto.id);
-                                creados++;
-                            }
-                        }
-                    } catch (_) {
-                        // Continuar con el siguiente
-                    }
-                }
-            }
-
-            toast({
-                title: '¡Listo!',
-                description: `Se sincronizaron ${creados} proyecto(s) y se limpiaron ${eliminados} terminado(s).`,
-            });
-            fetchProyectos();
-        } catch (err) {
-            console.error('Error sincronización masiva:', err);
-            toast({ variant: 'destructive', title: 'Error', description: 'No se pudo completar la sincronización con el calendario.' });
-        } finally {
-            setSyncAllLoading(false);
-        }
-    };
+    // El evento de Google se crea/actualiza/borra desde el flujo de estatus del
+    // proyecto (ver ProyectoDetalle + lib/calendarApi). Ya no hay sync masivo.
 
     const handleDeleteConfirm = async () => {
         if (!projectToDelete) return;
@@ -368,16 +284,6 @@ const Proyectos = () => {
                         <p className="text-gray-600 mt-1">Gestión integral de proyectos y secuencia de folios.</p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={syncAllToCalendar}
-                            disabled={syncAllLoading}
-                            className="gap-2"
-                            title="Sincronizar proyectos con fechas (sin evento en Google) al calendario"
-                        >
-                            {syncAllLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarCheck className="w-4 h-4" />}
-                            Sincronizar con Google Calendar
-                        </Button>
                         <Button
                             variant={seleccionActiva ? 'secondary' : 'outline'}
                             onClick={() => (seleccionActiva ? salirSeleccion() : setSeleccionActiva(true))}

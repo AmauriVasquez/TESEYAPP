@@ -3,7 +3,7 @@
  * Reglas: solo año en curso; si el cumple ya pasó → eliminar evento; si es hoy o futuro → crear evento.
  */
 
-import { getApiBase } from '@/lib/apiUrl';
+import { crearEventoCumple, eliminarEvento } from '@/lib/calendarApi';
 import { supabase } from '@/lib/customSupabaseClient';
 
 /**
@@ -41,7 +41,6 @@ function isBeforeToday(cumpleDateStr, todayStr) {
  * @returns {Promise<{ creados: number, eliminados: number, errores: number }>}
  */
 export async function syncCumpleanosGoogleCalendar(empleados) {
-  const base = getApiBase();
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
   let creados = 0;
@@ -57,13 +56,7 @@ export async function syncCumpleanosGoogleCalendar(empleados) {
       const yaPaso = isBeforeToday(cumple.dateStr, todayStr);
 
       if (yaPaso && emp.google_calendar_cumple_id) {
-        const res = await fetch(`${base}/api/calendar/event/${encodeURIComponent(emp.google_calendar_cumple_id)}`, {
-          method: 'DELETE',
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || res.statusText);
-        }
+        await eliminarEvento(emp.google_calendar_cumple_id);
         const { error } = await supabase
           .from('empleados')
           .update({ google_calendar_cumple_id: null })
@@ -71,19 +64,11 @@ export async function syncCumpleanosGoogleCalendar(empleados) {
         if (error) throw error;
         eliminados++;
       } else if (!yaPaso && !emp.google_calendar_cumple_id) {
-        const res = await fetch(`${base}/api/calendar/birthday`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: emp.id,
-            nombre_completo: emp.nombre_completo,
-            fecha_nacimiento: emp.fecha_nacimiento,
-          }),
+        const eventId = await crearEventoCumple({
+          nombre_completo: emp.nombre_completo,
+          fecha_nacimiento: emp.fecha_nacimiento,
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || res.statusText);
-        const eventId = data.eventId;
-        if (!eventId) throw new Error('El backend no devolvió eventId');
+        if (!eventId) throw new Error('La función no devolvió eventId');
         const { error } = await supabase
           .from('empleados')
           .update({ google_calendar_cumple_id: eventId })
