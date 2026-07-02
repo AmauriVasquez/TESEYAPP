@@ -34,23 +34,34 @@ where n.nspname = 'public' and p.prokind = 'f'
 
 
 -- ----------------------------------------------------------------------------
--- BLOQUE 1 — DROP de las 2 funciones huérfanas (sin uso, sin guardia, expuestas a anon)
---   Rollback: los CREATE originales están al final de este archivo (sección ROLLBACK).
+-- BLOQUE 1 — DROP de las huérfanas expuestas a anon. [APLICADO 2026-07-02]
+--   NOTA: get_users_with_email() tenía una VISTA dependiente (usuarios_con_email)
+--   que también exponía nombre+correo+rol a anon y NO se usa en el front. Se elimina.
+--   Rollback: CREATE originales en la sección ROLLBACK al final.
 -- ----------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS public.delete_project_and_related_data(integer);
+DROP VIEW IF EXISTS public.usuarios_con_email;
 DROP FUNCTION IF EXISTS public.get_users_with_email();
+DROP FUNCTION IF EXISTS public.delete_project_and_related_data(integer);
 
 
 -- ----------------------------------------------------------------------------
--- BLOQUE 2 — Quitar EXECUTE a anon en TODO el esquema public.
---   Las funciones admin ya validan es_admin_maestro() por dentro; esto es defensa en
---   profundidad: el rol anónimo no debería poder invocar NADA de la API RPC.
---   authenticated conserva sus permisos → el front sigue igual.
+-- BLOQUE 2 — Quitar EXECUTE a anon. [APLICADO 2026-07-02 — parcial]
+--   OJO: anon NO tenía grant directo; hereda EXECUTE de PUBLIC. Este REVOKE a anon
+--   se aplicó pero es insuficiente por sí solo (ver Bloque 2b).
 -- ----------------------------------------------------------------------------
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM anon;
-
--- Que las funciones FUTURAS tampoco se auto-concedan a anon (Supabase las concede por defecto).
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon;
+
+
+-- ----------------------------------------------------------------------------
+-- BLOQUE 2b — Quitar el EXECUTE heredado de PUBLIC. [PENDIENTE — requiere tu OK]
+--   Verificado seguro: ninguna función del front depende SOLO de PUBLIC;
+--   authenticated tiene grant explícito en todas. Esto cierra el residual de anon.
+--   Rollback: GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO PUBLIC;
+-- ----------------------------------------------------------------------------
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
 
 
 -- ----------------------------------------------------------------------------
