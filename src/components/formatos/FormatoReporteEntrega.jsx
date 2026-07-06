@@ -169,27 +169,23 @@ export default function FormatoReporteEntrega({ datos }) {
           </div>
 
           {e.items.length > 0 && (
-            <p className="text-xs mb-2">
-              <span className="text-gray-500 font-semibold uppercase text-[10px]">Partida(s): </span>
-              <span className="font-bold text-gray-800">
-                {[...new Set(e.items.map((it) => it.descripcion).filter(Boolean))].join(' · ')}
-              </span>
-            </p>
-          )}
-
-          {e.items.length > 0 && (
             <table className="w-full text-[11px] border-collapse mb-2">
               <thead>
                 <tr className="bg-gray-100 text-gray-600">
                   <th className="py-1 px-2 text-left font-bold">Descripción</th>
-                  <th className="py-1 px-2 text-center font-bold w-28">Cantidad entregada</th>
-                  <th className="py-1 px-2 text-center font-bold w-20">Unidad</th>
+                  <th className="py-1 px-2 text-center font-bold w-24">Cant. entregada</th>
+                  <th className="py-1 px-2 text-center font-bold w-16">Unidad</th>
                 </tr>
               </thead>
               <tbody>
                 {e.items.map((it, j) => (
-                  <tr key={j} className="border-b border-gray-100">
-                    <td className="py-1 px-2 text-gray-800">{it.descripcion}</td>
+                  <tr key={j} className="border-b border-gray-100 align-top">
+                    <td className="py-1 px-2 text-gray-800">
+                      <p className="font-bold">{it.descripcion}</p>
+                      {it.observaciones && (
+                        <p className="text-[10px] text-gray-500 italic leading-tight">{it.observaciones}</p>
+                      )}
+                    </td>
                     <td className="py-1 px-2 text-center font-mono">{it.cantidad_entregada}</td>
                     <td className="py-1 px-2 text-center uppercase text-gray-500">{it.unidad}</td>
                   </tr>

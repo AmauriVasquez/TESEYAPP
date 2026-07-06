@@ -74,7 +74,7 @@ export async function getDatosReporteEntrega({ proyectoId, cotizacionId }) {
   if (itemsById.size === 0 && cotizacionId) {
     const { data: ci, error: ciError } = await supabase
       .from('cotizaciones_items')
-      .select('id, descripcion, unidad')
+      .select('id, descripcion, unidad, observaciones')
       .eq('cotizacion_id', cotizacionId);
     if (ciError) throw ciError;
     itemsById = new Map((ci || []).map((it) => [String(it.id), it]));
@@ -95,6 +95,7 @@ export async function getDatosReporteEntrega({ proyectoId, cotizacionId }) {
       const lista = itemsPorEntrega.get(row.entrega_id) || [];
       lista.push({
         descripcion: partida?.descripcion ?? '—',
+        observaciones: partida?.observaciones ?? '',
         unidad: partida?.unidad ?? '',
         cantidad_entregada: Number(row.cantidad_entregada),
       });
