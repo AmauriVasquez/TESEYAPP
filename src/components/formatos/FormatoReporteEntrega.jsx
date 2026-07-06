@@ -6,7 +6,7 @@ import { getLogoByMarca } from '@/lib/brandLogos';
 // Componente SOLO de presentación (sin estado, sin efectos). Se monta oculto y su
 // innerHTML se concatena tras la cotización para imprimir el anexo de entrega.
 export default function FormatoReporteEntrega({ datos }) {
-  const { cotizacion = {}, entregas = [], reconciliacion = {}, sinEntregas } = datos || {};
+  const { cotizacion = {}, entregas = [], reconciliacion = {}, proyecto = {}, sinEntregas } = datos || {};
   const marca = cotizacion?.marca_comercial || cotizacion?.branding || 'tesey';
   const branding = getBrandingConfig(cotizacion?.branding);
   const colores = getMarcaColores(marca);
@@ -90,6 +90,14 @@ export default function FormatoReporteEntrega({ datos }) {
           <div className="text-right">
             <span className="text-gray-500 font-semibold text-[10px] uppercase block">Folio cotización:</span>
             <span className="font-bold text-gray-700">{cotizacion?.folio || '—'}</span>
+            {(proyecto?.folio || proyecto?.descripcion) && (
+              <>
+                <span className="text-gray-500 font-semibold text-[10px] uppercase block mt-1">Proyecto:</span>
+                <span className="font-bold text-gray-700">
+                  {[proyecto?.folio, proyecto?.descripcion].filter(Boolean).join(' — ')}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -159,6 +167,15 @@ export default function FormatoReporteEntrega({ datos }) {
               Recibió: <span className="font-semibold text-gray-800">{e.recibe_nombre || '—'}</span>
             </span>
           </div>
+
+          {e.items.length > 0 && (
+            <p className="text-xs mb-2">
+              <span className="text-gray-500 font-semibold uppercase text-[10px]">Partida(s): </span>
+              <span className="font-bold text-gray-800">
+                {[...new Set(e.items.map((it) => it.descripcion).filter(Boolean))].join(' · ')}
+              </span>
+            </p>
+          )}
 
           {e.items.length > 0 && (
             <table className="w-full text-[11px] border-collapse mb-2">

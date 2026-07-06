@@ -196,6 +196,7 @@ const ProyectoDetalle = () => {
         toast({ variant: 'destructive', title: 'Sin entregas', description: 'Este proyecto no tiene entregas registradas en el sistema actual.' });
         return;
       }
+      datos.proyecto = { folio: proyecto?.folio, descripcion: proyecto?.descripcion };
       const marca = datos.cotizacion?.marca_comercial || datos.cotizacion?.branding || 'tesey';
       const extraerRoot = (markup, selector) => {
         const doc = new DOMParser().parseFromString(markup, 'text/html');
@@ -223,7 +224,7 @@ const ProyectoDetalle = () => {
     } finally {
       setImprimiendoReporte(false);
     }
-  }, [imprimiendoReporte, proyecto?.cotizacion_id, id, toast]);
+  }, [imprimiendoReporte, proyecto, id, toast]);
 
   const sanitizeFilename = (filename) => {
     return filename.replace(/[^a-zA-Z0-9-_\.]/g, '_');
