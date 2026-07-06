@@ -24,6 +24,12 @@ import ProjectDatesModal from '@/components/proyectos/ProjectDatesModal';
 import ComprobanteIngreso from '@/components/finanzas/ComprobanteIngreso';
 import NuevoPedidoDialog from '@/components/pedidos/NuevoPedidoDialog';
 import SeleccionarFormatoCotizacionDialog from '@/components/cotizaciones/SeleccionarFormatoCotizacionDialog';
+import { renderToStaticMarkup } from 'react-dom/server';
+import FormatoCotizacionTESEY from '@/components/formatos/FormatoCotizacionTESEY';
+import FormatoReporteEntrega from '@/components/formatos/FormatoReporteEntrega';
+import { getDatosReporteEntrega } from '@/lib/reporteEntregaData';
+import { imprimirDocumentoCombinado } from '@/lib/printCombined';
+import { getMarcaColores } from '@/lib/brandingConfig';
 import { cn } from '@/lib/utils';
 import { uploadBitacoraImage } from '@/lib/bitacoraUpload';
 import { format, parseISO } from 'date-fns';
@@ -152,6 +158,7 @@ const ProyectoDetalle = () => {
   const [pendingConfirmEstatus, setPendingConfirmEstatus] = useState(null);
   const [datesModalSubmitting, setDatesModalSubmitting] = useState(false);
   const [showQuotePreview, setShowQuotePreview] = useState(false);
+  const [imprimiendoReporte, setImprimiendoReporte] = useState(false);
 
   const bitacoraFileInputRef = useRef(null);
 
@@ -173,6 +180,50 @@ const ProyectoDetalle = () => {
   useEffect(() => {
     if (entregasTotalesCerradas) setAddEntregaDialogOpen(false);
   }, [entregasTotalesCerradas]);
+
+  /** Genera un solo PDF: cotización + anexo de reporte de entrega consolidado. */
+  const handleImprimirCotizacionEntrega = useCallback(async () => {
+    if (imprimiendoReporte) return;
+    const cotizacionId = proyecto?.cotizacion_id;
+    if (!cotizacionId) {
+      toast({ variant: 'destructive', title: 'Sin cotización', description: 'El proyecto no tiene cotización vinculada.' });
+      return;
+    }
+    setImprimiendoReporte(true);
+    try {
+      const datos = await getDatosReporteEntrega({ proyectoId: id, cotizacionId });
+      if (datos.sinEntregas) {
+        toast({ variant: 'destructive', title: 'Sin entregas', description: 'Este proyecto no tiene entregas registradas en el sistema actual.' });
+        return;
+      }
+      const marca = datos.cotizacion?.marca_comercial || datos.cotizacion?.branding || 'tesey';
+      const extraerRoot = (markup, selector) => {
+        const doc = new DOMParser().parseFromString(markup, 'text/html');
+        return doc.querySelector(selector)?.outerHTML ?? markup;
+      };
+      const cotHTML = extraerRoot(
+        renderToStaticMarkup(<FormatoCotizacionTESEY cotizacionData={datos.cotizacion} hidePrintButton />),
+        '.print-doc-root'
+      );
+      const repHTML = extraerRoot(
+        renderToStaticMarkup(<FormatoReporteEntrega datos={datos} />),
+        '.report-entrega-root'
+      );
+      const ok = await imprimirDocumentoCombinado({
+        bloquesHTML: [cotHTML, repHTML],
+        titulo: `Cotización y entrega ${datos.cotizacion?.folio || ''}`.trim(),
+        cssVars: getMarcaColores(marca),
+      });
+      if (ok === false) {
+        toast({ variant: 'destructive', title: 'Popup bloqueado', description: 'Permite ventanas emergentes para generar el PDF.' });
+      }
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Error', description: err?.message ?? 'No se pudo generar el reporte.' });
+    } finally {
+      setImprimiendoReporte(false);
+    }
+  }, [imprimiendoReporte, proyecto?.cotizacion_id, id, toast]);
 
   const sanitizeFilename = (filename) => {
     return filename.replace(/[^a-zA-Z0-9-_\.]/g, '_');
@@ -1150,6 +1201,21 @@ const ProyectoDetalle = () => {
                     }}
                   />
                 )}
+                {proyecto?.cotizacion_id &&
+                  (proyecto.estatus === 'Terminado' ||
+                    proyecto.estatus === 'Entregado' ||
+                    proyecto.estado === 'parcial') && (
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={handleImprimirCotizacionEntrega}
+                      disabled={imprimiendoReporte}
+                      title="Genera un PDF con la cotización y el reporte de entrega para enviar al cliente"
+                    >
+                      {imprimiendoReporte ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                      Cotización + Reporte de entrega (PDF)
+                    </Button>
+                  )}
                 <div className="bg-white p-6 rounded-xl border shadow-sm">
                     <h3 className="font-bold text-lg mb-3">Archivos del Proyecto</h3>
                     {archivos.length > 0 ? (<div className="space-y-2 max-h-60 overflow-y-auto pr-2">{archivos.map(file => (<div key={file.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 group"><div className="flex items-center gap-3"><FileIcon className="w-5 h-5 text-blue-500" /><span className="text-sm font-medium text-gray-800">{file.nombre_archivo}</span></div><div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><Button asChild variant="ghost" size="icon" className="h-7 w-7"><a href={file.url_archivo} target="_blank" rel="noopener noreferrer"><Download className="w-4 h-4" /></a></Button>{!isTerminadoOEntregado && <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => handleDeleteFile(file.id, file.url_archivo)}><Trash2 className="w-4 h-4" /></Button>}</div></div>))}</div>) : <div className="text-center py-6 text-gray-500"><FileIcon className="mx-auto w-8 h-8 mb-2 text-gray-400" />No hay archivos adjuntos.</div>}
