@@ -103,44 +103,43 @@ export default function FormatoReporteEntrega({ datos }) {
       </div>
 
       {/* --- RECONCILIACIÓN (pedido vs entregado) --- */}
-      <div className="rounded-lg border border-gray-200 p-3 mb-4 shadow-sm">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold uppercase tracking-wide text-gray-600">
+      <div className="mb-5">
+        <div className="flex flex-wrap items-center gap-3 mb-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-gray-500">
             Estado de la entrega
           </span>
           <span
-            className={`text-sm font-bold px-3 py-1 rounded-full ${
+            className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
               hayPendiente ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
             }`}
           >
             {hayPendiente ? 'PARCIAL' : 'COMPLETO'}
           </span>
+          <span className="text-sm text-gray-600">
+            {partidasCompletas} de {partidasTotales} partidas entregadas
+          </span>
         </div>
-        <p className="text-sm text-gray-700 mb-2">
-          Entregado: <span className="font-bold">{partidasCompletas}</span> de{' '}
-          <span className="font-bold">{partidasTotales}</span> partidas.
-        </p>
         {partidas.length > 0 && (
           <table className="w-full text-[11px] border-collapse">
             <thead>
-              <tr className="text-white" style={{ backgroundColor: 'var(--color-primario)' }}>
-                <th className="py-1 px-2 text-left font-bold">Partida</th>
-                <th className="py-1 px-2 text-center font-bold w-20">Pedido</th>
-                <th className="py-1 px-2 text-center font-bold w-20">Entregado</th>
-                <th className="py-1 px-2 text-center font-bold w-20">Pendiente</th>
+              <tr className="text-gray-500 border-b-2 border-gray-200">
+                <th className="py-1 px-2 text-left font-semibold">Partida</th>
+                <th className="py-1 px-2 text-center font-semibold w-16">Pedido</th>
+                <th className="py-1 px-2 text-center font-semibold w-16">Entreg.</th>
+                <th className="py-1 px-2 text-center font-semibold w-16">Pend.</th>
               </tr>
             </thead>
             <tbody>
               {partidas.map((p, i) => {
                 const pend = Number(p.pendiente);
                 return (
-                  <tr key={i} className={`border-b border-gray-200 ${pend > 0 ? 'bg-amber-50' : ''}`}>
-                    <td className="py-1 px-2 text-gray-800">{p.descripcion}</td>
-                    <td className="py-1 px-2 text-center font-mono">{p.total}</td>
-                    <td className="py-1 px-2 text-center font-mono">{p.entregado}</td>
+                  <tr key={i} className="border-b border-gray-100">
+                    <td className="py-1 px-2 text-gray-700">{p.descripcion}</td>
+                    <td className="py-1 px-2 text-center font-mono text-gray-500">{p.total}</td>
+                    <td className="py-1 px-2 text-center font-mono text-gray-700">{p.entregado}</td>
                     <td
                       className={`py-1 px-2 text-center font-mono ${
-                        pend > 0 ? 'font-bold text-amber-800' : 'text-gray-400'
+                        pend > 0 ? 'font-bold text-amber-700' : 'text-gray-300'
                       }`}
                     >
                       {pend}
@@ -157,9 +156,9 @@ export default function FormatoReporteEntrega({ datos }) {
       {entregas.map((e, idx) => (
         <div
           key={e.id}
-          className="entrega-bloque rounded-lg border border-gray-200 p-3 mb-4 shadow-sm"
+          className="entrega-bloque pt-3 mt-4 border-t border-gray-200"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-1 mb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <span className="text-sm font-bold text-gray-800">
               Entrega #{idx + 1} — {formatDateForPrint(e.fecha)} {horaEntrega(e.fecha)}
             </span>
@@ -171,10 +170,10 @@ export default function FormatoReporteEntrega({ datos }) {
           {e.items.length > 0 && (
             <table className="w-full text-[11px] border-collapse mb-2">
               <thead>
-                <tr className="bg-gray-100 text-gray-600">
-                  <th className="py-1 px-2 text-left font-bold">Descripción</th>
-                  <th className="py-1 px-2 text-center font-bold w-24">Cant. entregada</th>
-                  <th className="py-1 px-2 text-center font-bold w-16">Unidad</th>
+                <tr className="text-gray-500 border-b border-gray-200">
+                  <th className="py-1 px-2 text-left font-semibold">Descripción</th>
+                  <th className="py-1 px-2 text-center font-semibold w-24">Cant. entregada</th>
+                  <th className="py-1 px-2 text-center font-semibold w-16">Unidad</th>
                 </tr>
               </thead>
               <tbody>
