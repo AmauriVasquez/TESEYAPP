@@ -111,9 +111,33 @@ si no → imprime. Estado `imprimiendoEstadoCuenta` para deshabilitar el botón.
 - Si el cliente no tiene adeudos entregados → toast "sin adeudos", no PDF vacío.
 - El documento se ve limpio (mismo estilo aligerado del reporte de entrega).
 
+## Addendum — cambios del council (2026-07-07)
+
+El council modificó el diseño. Cambios obligatorios sobre lo anterior:
+
+1. **Adeudo = `COALESCE(monto_aprobado, total)`** (15 cotizaciones tienen `monto_aprobado` ≠ `total`;
+   cobrar sobre `total` dunea un monto no pactado).
+2. **Ledger de pagos por proyecto** — la confianza la genera la reconciliación, no las firmas. Bajo cada
+   proyecto, listar los pagos aplicados: `fecha_pago · método · monto` (desde `proyecto_pagos`), y luego
+   Total / Pagado / **Saldo**. "Pagado" nunca como número suelto.
+3. **Fecha de corte** en el encabezado: "Saldos al {hoy}". Sin corte, un saldo viejo se lee como error.
+4. **Etiquetado que reconcilia** — las líneas de partida son *detalle de entrega*; su `importe` es s/IVA.
+   La cifra que gobierna es el **Total del proyecto (c/IVA) / Pagado / Saldo**. Mostrar por proyecto un
+   "Subtotal entregado (s/IVA)" para que el parcial sea transparente y NO implicar que las líneas suman al
+   Total (difieren por IVA y por partidas no entregadas).
+5. **Se mantiene la firma por línea** (requisito del usuario + es la prueba que desactiva "no lo recibí").
+   Se **quita la columna "Recibió"** separada: el nombre va como pie bajo la miniatura de firma (menos
+   saturación). Columnas finales: `Partida (desc+modelo) | Cant. entregada | Importe (s/IVA) | Fecha entrega | Firma (+nombre)`.
+6. **Anti fan-out (bug crítico):** los pagos se agregan en **consulta separada por proyecto**
+   (`SUM(monto) GROUP BY proyecto_id`), nunca en un join contra las líneas (multiplicaría el pagado y el
+   saldo saldría mal en silencio). Filtro `≥1 entrega AND saldo>0` se aplica en JS.
+7. **Orden de construcción:** data headless verificada con `console.log` (números correctos de un cliente
+   real con parciales) → componente → botón. Sin multi-cliente ni rango de fechas (YAGNI).
+
 ## Diferido (post-v1)
 
+- **Link web por cliente** (Expansionist): vista viva y tokenizada del saldo con prueba firmada; la palanca
+  real de cobro y ruta a factoraje. Reusa el mismo componente servido en web.
 - Envío automático por correo.
-- Estado de cuenta consolidado multi-cliente / cartera total (el "botón global con selector").
-- Antigüedad de saldos (aging 30/60/90).
-- Enlazar cada línea a su comprobante/CFDI.
+- Estado de cuenta consolidado multi-cliente / cartera total; aging 30/60/90.
+- Enlazar cada línea a su comprobante/CFDI y número de factura/PO (lo pidió el Outsider para reconciliar).
