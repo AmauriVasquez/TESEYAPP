@@ -2,10 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet';
-import { Plus, Search, Mail, Phone, Building, Edit, Trash2, Eye, Loader2 } from 'lucide-react';
+import { Plus, Search, Mail, Phone, Building, Edit, Trash2, Eye, Loader2, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import ClienteDialog from '@/components/clientes/ClienteDialog';
+import { renderToStaticMarkup } from 'react-dom/server';
+import FormatoEstadoCuenta from '@/components/formatos/FormatoEstadoCuenta';
+import { getEstadoCuentaCliente } from '@/lib/estadoCuentaData';
+import { imprimirDocumentoCombinado } from '@/lib/printCombined';
+import { getMarcaColores } from '@/lib/brandingConfig';
 import ClienteDetalle from '@/components/clientes/ClienteDetalle';
 import { supabase } from '@/lib/customSupabaseClient';
 import {
@@ -30,6 +35,36 @@ const Clientes = () => {
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [clienteToPreview, setClienteToPreview] = useState(null);
+  const [imprimiendoCuentaId, setImprimiendoCuentaId] = useState(null);
+
+  /** Genera el PDF de estado de cuenta (entregado pendiente de pago) del cliente. */
+  const handleEstadoCuenta = useCallback(async (cliente) => {
+    if (imprimiendoCuentaId) return;
+    setImprimiendoCuentaId(cliente.id);
+    try {
+      const datos = await getEstadoCuentaCliente({ clienteId: cliente.id });
+      if (datos.sinAdeudos) {
+        toast({ title: 'Sin adeudos', description: 'Este cliente no tiene trabajos entregados con saldo pendiente.' });
+        return;
+      }
+      const markup = renderToStaticMarkup(<FormatoEstadoCuenta datos={datos} />);
+      const doc = new DOMParser().parseFromString(markup, 'text/html');
+      const html = doc.querySelector('.estado-cuenta-root')?.outerHTML ?? markup;
+      const ok = await imprimirDocumentoCombinado({
+        bloquesHTML: [html],
+        titulo: `Estado de cuenta ${cliente.nombre || ''}`.trim(),
+        cssVars: getMarcaColores(datos.marca),
+      });
+      if (ok === false) {
+        toast({ variant: 'destructive', title: 'Popup bloqueado', description: 'Permite ventanas emergentes para generar el PDF.' });
+      }
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Error', description: err?.message ?? 'No se pudo generar el estado de cuenta.' });
+    } finally {
+      setImprimiendoCuentaId(null);
+    }
+  }, [imprimiendoCuentaId, toast]);
 
 
   const fetchClientes = useCallback(async () => {
@@ -196,6 +231,17 @@ const Clientes = () => {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={(e) => { e.stopPropagation(); handleEstadoCuenta(cliente); }}
+                        disabled={imprimiendoCuentaId === cliente.id}
+                        className="h-10 gap-1.5"
+                        title="Estado de cuenta (PDF)"
+                      >
+                        {imprimiendoCuentaId === cliente.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                        Estado de cuenta
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={(e) => { e.stopPropagation(); handleEdit(cliente); }}
                         className="h-10 gap-1.5"
                       >
@@ -272,6 +318,16 @@ const Clientes = () => {
                         </td>
                         <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
+                            <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => { e.stopPropagation(); handleEstadoCuenta(cliente); }}
+                            disabled={imprimiendoCuentaId === cliente.id}
+                            className="hover:bg-green-50 hover:text-green-700"
+                            title="Estado de cuenta (PDF)"
+                            >
+                            {imprimiendoCuentaId === cliente.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                            </Button>
                             <Button
                             variant="ghost"
                             size="icon"
