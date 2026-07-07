@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Building, Mail, Phone, MapPin, FileText, User, Pencil, PackageCheck } from 'lucide-react';
+import { Building, Mail, Phone, MapPin, FileText, User, Pencil, PackageCheck, FileDown, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
@@ -24,7 +24,7 @@ const InfoRow = ({ icon: Icon, label, value }) => (
   </div>
 );
 
-const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
+const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit, onEstadoCuenta, imprimiendoCuenta = false }) => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [cotizaciones, setCotizaciones] = useState([]);
@@ -110,18 +110,34 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit }) => {
             <Building className="w-5 h-5 text-blue-600" />
             {cliente.nombre}
           </DialogTitle>
-          {onEdit && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="mt-2 gap-2 w-fit"
-              onClick={() => onEdit(cliente)}
-            >
-              <Pencil className="w-4 h-4" />
-              Editar
-            </Button>
-          )}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {onEdit && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-2 w-fit"
+                onClick={() => onEdit(cliente)}
+              >
+                <Pencil className="w-4 h-4" />
+                Editar
+              </Button>
+            )}
+            {onEstadoCuenta && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-2 w-fit"
+                onClick={() => onEstadoCuenta(cliente)}
+                disabled={imprimiendoCuenta}
+                title="Estado de cuenta (PDF)"
+              >
+                {imprimiendoCuenta ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                Estado de cuenta
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         <div className="mt-3">

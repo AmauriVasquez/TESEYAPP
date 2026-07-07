@@ -28,12 +28,12 @@ export async function getEstadoCuentaCliente({ clienteId }) {
   // 2. Proyectos del cliente (no eliminados, con cotización).
   const { data: proyectosRaw, error: proyectosError } = await supabase
     .from('proyectos')
-    .select('id, folio, descripcion, cotizacion_id, eliminado')
+    .select('id, folio, descripcion, cotizacion_id')
     .eq('cliente_id', clienteId)
     .not('cotizacion_id', 'is', null);
   if (proyectosError) throw proyectosError;
 
-  const proyectos = (proyectosRaw || []).filter((p) => p.eliminado !== true && p.cotizacion_id != null);
+  const proyectos = (proyectosRaw || []).filter((p) => p.cotizacion_id != null);
   if (proyectos.length === 0) return vacio;
 
   const proyectoIds = proyectos.map((p) => p.id);

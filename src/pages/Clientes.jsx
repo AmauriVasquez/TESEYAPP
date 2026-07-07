@@ -378,6 +378,8 @@ const Clientes = () => {
         }}
         cliente={clienteToPreview}
         onEdit={handleEdit}
+        onEstadoCuenta={handleEstadoCuenta}
+        imprimiendoCuenta={imprimiendoCuentaId != null && imprimiendoCuentaId === clienteToPreview?.id}
       />
       <AlertDialog open={deleteConfirmationOpen} onOpenChange={setDeleteConfirmationOpen}>
             <AlertDialogContent>
