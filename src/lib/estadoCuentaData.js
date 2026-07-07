@@ -67,7 +67,7 @@ export async function getEstadoCuentaCliente({ clienteId }) {
   // 5. Entregas de los proyectos (para fecha/receptor/firma y "tiene ≥1 entrega").
   const { data: entregasRaw, error: entregasError } = await supabase
     .from('entregas')
-    .select('id, proyecto_id, fecha, recibe_nombre, firma_url, created_at')
+    .select('id, proyecto_id, fecha, recibe_nombre, firma_url, foto_url, created_at')
     .in('proyecto_id', proyectoIds)
     .order('fecha', { ascending: true })
     .order('created_at', { ascending: true });
@@ -76,6 +76,19 @@ export async function getEstadoCuentaCliente({ clienteId }) {
   const entregasBase = entregasRaw || [];
   const entregaById = new Map(entregasBase.map((e) => [e.id, e]));
   const tieneEntrega = new Set(entregasBase.map((e) => e.proyecto_id));
+
+  // Entregas por proyecto (firma + evidencia a nivel cotización, no por partida).
+  const entregasPorProyecto = new Map();
+  for (const e of entregasBase) {
+    const lista = entregasPorProyecto.get(e.proyecto_id) || [];
+    lista.push({
+      fecha: e.fecha ?? e.created_at,
+      recibe_nombre: e.recibe_nombre,
+      firma_url: e.firma_url,
+      foto_url: e.foto_url,
+    });
+    entregasPorProyecto.set(e.proyecto_id, lista);
+  }
 
   // 6. Renglones de esas entregas.
   const entregaIds = entregasBase.map((e) => e.id);
@@ -142,6 +155,7 @@ export async function getEstadoCuentaCliente({ clienteId }) {
       saldo,
       subtotalEntregado,
       pagos: pagosPorProyecto.get(p.id) || [],
+      entregas: entregasPorProyecto.get(p.id) || [],
       lineas,
     });
   }

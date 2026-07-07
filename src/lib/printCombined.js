@@ -5,7 +5,7 @@
  */
 import { PRINT_LETTER_WINDOW_STYLES } from './printLetterWindowCss.js';
 
-export async function imprimirDocumentoCombinado({ bloquesHTML, titulo, cssVars }) {
+export async function imprimirDocumentoCombinado({ bloquesHTML, titulo, cssVars, orientacion = 'portrait' }) {
   const w = window.open('', '_blank');
   if (!w) {
     console.error('Popup bloqueado. No se puede imprimir.');
@@ -13,6 +13,11 @@ export async function imprimirDocumentoCombinado({ bloquesHTML, titulo, cssVars 
   }
 
   const { primario, secundario, acento } = cssVars || {};
+  // Landscape opcional: sobreescribe @page y ensancha el área (los demás formatos siguen portrait).
+  const landscapeCss =
+    orientacion === 'landscape'
+      ? '@page { size: letter landscape; margin: 5mm; } #print-area { max-width: 279mm; }'
+      : '';
   const cuerpo = (bloquesHTML || [])
     .map((html) => `<div class="doc-bloque">${html}</div>`)
     .join('');
@@ -34,6 +39,7 @@ export async function imprimirDocumentoCombinado({ bloquesHTML, titulo, cssVars 
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           [class*="entrega-bloque"], .report-entrega-item, .print-doc-root { break-inside: avoid; }
           .doc-bloque + .doc-bloque { page-break-before: always; }
+          ${landscapeCss}
         </style>
       </head>
       <body>

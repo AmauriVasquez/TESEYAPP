@@ -54,6 +54,7 @@ const Clientes = () => {
         bloquesHTML: [html],
         titulo: `Estado de cuenta ${cliente.nombre || ''}`.trim(),
         cssVars: getMarcaColores(datos.marca),
+        orientacion: 'landscape',
       });
       if (ok === false) {
         toast({ variant: 'destructive', title: 'Popup bloqueado', description: 'Permite ventanas emergentes para generar el PDF.' });

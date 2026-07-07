@@ -21,7 +21,7 @@ export default function FormatoEstadoCuenta({ datos }) {
   };
 
   const rootClass =
-    'estado-cuenta-root w-full max-w-[216mm] bg-white p-8 text-black relative box-border mx-auto flex flex-col';
+    'estado-cuenta-root w-full max-w-[277mm] bg-white p-8 text-black relative box-border mx-auto flex flex-col';
 
   const Header = () => (
     <header
@@ -91,7 +91,7 @@ export default function FormatoEstadoCuenta({ datos }) {
 
       {/* --- BLOQUE POR PROYECTO --- */}
       {proyectos.map((p) => {
-        const { proyecto = {}, cotizacion = {}, total, pagado, saldo, subtotalEntregado, pagos = [], lineas = [] } = p;
+        const { proyecto = {}, cotizacion = {}, total, pagado, saldo, subtotalEntregado, pagos = [], entregas = [], lineas = [] } = p;
         return (
           <div
             key={proyecto.id}
@@ -110,45 +110,66 @@ export default function FormatoEstadoCuenta({ datos }) {
               <table className="w-full text-[11px] border-collapse mb-2">
                 <thead>
                   <tr className="text-gray-500 border-b border-gray-200">
+                    <th className="py-1 px-2 text-left font-semibold w-10">#</th>
                     <th className="py-1 px-2 text-left font-semibold">Partida</th>
-                    <th className="py-1 px-2 text-center font-semibold w-24">Cant. entregada</th>
-                    <th className="py-1 px-2 text-right font-semibold w-28">Importe (s/IVA)</th>
-                    <th className="py-1 px-2 text-center font-semibold w-24">Fecha entrega</th>
-                    <th className="py-1 px-2 text-center font-semibold w-28">Firma</th>
+                    <th className="py-1 px-2 text-center font-semibold w-28">Cant. entregada</th>
+                    <th className="py-1 px-2 text-center font-semibold w-28">Fecha entrega</th>
+                    <th className="py-1 px-2 text-right font-semibold w-32">Importe (s/IVA)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {lineas.map((l, j) => (
                     <tr key={j} className="border-b border-gray-100 align-top">
+                      <td className="py-1 px-2 text-gray-400 font-mono">{j + 1}</td>
                       <td className="py-1 px-2 text-gray-800">
-                        <p className="font-bold">{l.descripcion}</p>
+                        <span className="font-bold">{l.descripcion}</span>
                         {l.observaciones && (
-                          <p className="text-[10px] text-gray-500 italic leading-tight">{l.observaciones}</p>
+                          <span className="text-[10px] text-gray-500 italic leading-tight"> — {l.observaciones}</span>
                         )}
                       </td>
                       <td className="py-1 px-2 text-center font-mono">{l.cantidad_entregada}</td>
-                      <td className="py-1 px-2 text-right font-mono">{money(l.importe)}</td>
                       <td className="py-1 px-2 text-center text-gray-600">
                         {l.entrega_fecha ? formatDateForPrint(l.entrega_fecha) : '—'}
                       </td>
-                      <td className="py-1 px-2 text-center">
-                        {l.firma_url ? (
-                          <img
-                            src={l.firma_url}
-                            alt="Firma de recibido"
-                            className="max-h-10 mx-auto object-contain bg-white"
-                          />
-                        ) : (
-                          <span className="text-[10px] text-gray-400">Sin firma</span>
-                        )}
-                        {l.recibe_nombre && (
-                          <p className="text-[9px] text-gray-500 leading-tight mt-0.5">{l.recibe_nombre}</p>
-                        )}
-                      </td>
+                      <td className="py-1 px-2 text-right font-mono">{money(l.importe)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            )}
+
+            {/* Entregas: firma + evidencia por cotización (no por partida) */}
+            {entregas.length > 0 && (
+              <div className="mb-2">
+                <span className="text-[10px] uppercase font-semibold text-gray-500 block mb-1">
+                  Acuse(s) de entrega:
+                </span>
+                <div className="flex flex-wrap gap-3">
+                  {entregas.map((e, k) => (
+                    <div key={k} className="flex items-end gap-3 border border-gray-200 rounded p-2">
+                      {e.foto_url && (
+                        <div className="text-center">
+                          <img src={e.foto_url} alt="Evidencia" className="max-h-24 object-contain" />
+                          <p className="text-[9px] text-gray-400 mt-0.5">Evidencia</p>
+                        </div>
+                      )}
+                      <div className="text-center">
+                        {e.firma_url ? (
+                          <img src={e.firma_url} alt="Firma" className="max-h-16 object-contain bg-white" />
+                        ) : (
+                          <span className="text-[10px] text-gray-400">Sin firma</span>
+                        )}
+                        <p className="text-[9px] text-gray-600 leading-tight mt-0.5">
+                          {e.recibe_nombre || '—'}
+                        </p>
+                        <p className="text-[9px] text-gray-400 leading-tight">
+                          {e.fecha ? formatDateForPrint(e.fecha) : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* Ledger de pagos aplicados */}
