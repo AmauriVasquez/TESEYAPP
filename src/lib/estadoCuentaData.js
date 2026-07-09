@@ -139,7 +139,8 @@ export async function getEstadoCuentaCliente({ clienteId }) {
     const cot = cotById.get(p.cotizacion_id);
     const total = Number(cot?.monto_aprobado ?? cot?.total ?? 0);
     const pagado = pagadoPorProyecto.get(p.id) || 0;
-    const saldo = Math.max(0, total - pagado);
+    // Saldo a centavos: sin esto, residuos de float (p.ej. $0.0004) cuentan como adeudo.
+    const saldo = Math.max(0, Math.round((total - pagado) * 100) / 100);
     if (saldo <= 0) continue;
 
     const lineas = (lineasPorProyecto.get(p.id) || []).sort(
