@@ -8,7 +8,7 @@ import { supabase } from '@/lib/customSupabaseClient';
 import { notifyProjectFinishedOrDelivered } from '@/services/TelegramService';
 import { Loader2, ChevronLeft, Package, Layers, Camera, Images } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { uploadEntregaImage } from '@/lib/entregaUpload';
+import { uploadEntregaImage, compressEntregaFoto } from '@/lib/entregaUpload';
 import SignaturePad from '@/components/proyectos/SignaturePad';
 
 const MOBILE_MAX_PX = 767;
@@ -224,6 +224,7 @@ function EntregaMobileFlow({
   entregaFotoInputRef,
   onEntregaFotoChange,
   onClearEntregaFoto,
+  fotoProcesando,
   sigApiRef,
   open,
   onSave,
@@ -524,6 +525,11 @@ function EntregaMobileFlow({
                 />
               </label>
             </div>
+            {fotoProcesando ? (
+              <p className="flex items-center gap-2 text-sm text-gray-500">
+                <Loader2 className="h-4 w-4 animate-spin" /> Procesando foto…
+              </p>
+            ) : null}
             {entregaFotoPreview ? (
               <div className="mt-2 w-full overflow-hidden rounded-lg border bg-white">
                 <img
@@ -631,8 +637,32 @@ export default function EntregaModal({
   const [completos, setCompletos] = useState({});
   const [entregaFotoFile, setEntregaFotoFile] = useState(null);
   const [entregaFotoPreview, setEntregaFotoPreview] = useState(null);
+  const [fotoProcesando, setFotoProcesando] = useState(false);
   const sigApiRef = useRef(null);
   const entregaFotoInputRef = useRef(null);
+  const draftCargadoRef = useRef(false);
+
+  // Borrador en sessionStorage: al abrir la cámara el OS puede matar la
+  // pestaña y recargar la página; sin esto se perdía lo ya capturado.
+  // Solo texto (la foto se retoma; dataURLs reventarían la cuota en móviles).
+  const draftKey = `entrega_draft_${proyectoId}`;
+
+  useEffect(() => {
+    if (!open) { draftCargadoRef.current = false; return; }
+    try {
+      const d = JSON.parse(sessionStorage.getItem(draftKey) || 'null');
+      if (d?.recibe) setRecibeNombre(d.recibe);
+      if (d?.comentarios) setComentarios(d.comentarios);
+    } catch { /* borrador corrupto: ignorar */ }
+    draftCargadoRef.current = true;
+  }, [open, draftKey]);
+
+  useEffect(() => {
+    if (!open || !draftCargadoRef.current) return;
+    try {
+      sessionStorage.setItem(draftKey, JSON.stringify({ recibe: recibeNombre, comentarios }));
+    } catch { /* cuota llena: seguir sin borrador */ }
+  }, [open, draftKey, recibeNombre, comentarios]);
 
   const rows = React.useMemo(() => (itemsRaw ?? []).map(mapEntregaItemRow).filter((r) => r.id != null), [itemsRaw]);
 
@@ -640,18 +670,25 @@ export default function EntregaModal({
 
   const sanitizeFilename = (filename) => filename.replace(/[^a-zA-Z0-9-_\.]/g, '_');
 
-  const handleEntregaFotoChange = (e) => {
+  const handleEntregaFotoChange = async (e) => {
     const f = e.target.files?.[0];
+    e.target.value = '';
     if (!f) return;
     if (!f.type.startsWith('image/')) {
       toast({ variant: 'destructive', title: 'Archivo no válido', description: 'Selecciona una imagen.' });
       return;
     }
-    setEntregaFotoPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(f);
-    });
-    setEntregaFotoFile(f);
+    setFotoProcesando(true);
+    try {
+      const comprimida = await compressEntregaFoto(f);
+      setEntregaFotoPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(comprimida);
+      });
+      setEntregaFotoFile(comprimida);
+    } finally {
+      setFotoProcesando(false);
+    }
   };
 
   const clearEntregaFoto = () => {
@@ -985,6 +1022,7 @@ export default function EntregaModal({
         });
       }
 
+      try { sessionStorage.removeItem(draftKey); } catch { /* sin borrador que limpiar */ }
       toast({ title: 'Entrega registrada', description: 'Los datos se guardaron correctamente.' });
       onItemsRefetch?.();
       onSuccess?.();
@@ -1049,6 +1087,7 @@ export default function EntregaModal({
               entregaFotoInputRef={entregaFotoInputRef}
               onEntregaFotoChange={handleEntregaFotoChange}
               onClearEntregaFoto={clearEntregaFoto}
+              fotoProcesando={fotoProcesando}
               sigApiRef={sigApiRef}
               open={open}
               onSave={handleSave}
@@ -1162,6 +1201,11 @@ export default function EntregaModal({
                         />
                       </label>
                     </div>
+                    {fotoProcesando ? (
+                      <p className="flex items-center gap-2 text-xs text-gray-500">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Procesando foto…
+                      </p>
+                    ) : null}
                     {entregaFotoPreview ? (
                       <div className="mt-2 w-full overflow-hidden rounded-lg border">
                         <img

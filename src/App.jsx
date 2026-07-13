@@ -40,6 +40,7 @@ import {
   ActivosOperativosIndexPage,
 } from '@/components/module/ModuleSectionLayouts';
 import Layout from '@/components/Layout';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { Toaster } from '@/components/ui/toaster';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -103,7 +104,7 @@ const ProtectedRoute = ({ children, requiredPermission }) => {
 
 function App() {
   return (
-    <>
+    <ErrorBoundary>
       <Helmet>
         <title>Sistema de Control de Proyectos IIHEMSA Peninsular</title>
         <meta name="description" content="Sistema integral de gestión de proyectos metalmecánicos con control de materiales, cotizaciones, compras y entregas" />
@@ -368,7 +369,7 @@ function App() {
         <Toaster />
         </PermissionsProvider>
       </AuthProvider>
-    </>
+    </ErrorBoundary>
   );
 }
 

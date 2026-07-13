@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
-import { uploadEntregaImage } from '@/lib/entregaUpload';
+import { uploadEntregaImage, compressEntregaFoto } from '@/lib/entregaUpload';
 import { notifyProjectFinishedOrDelivered } from '@/services/TelegramService';
 import { mapEntregaItemRow } from '@/components/EntregaModal';
 import SignaturePad from '@/components/proyectos/SignaturePad';
@@ -96,8 +96,11 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
   const [comentarios, setComentarios] = useState('');
   const [fotoFiles, setFotoFiles] = useState([]);       // File[]
   const [fotoPreviews, setFotoPreviews] = useState([]); // { id, url }[]
+  const [procesandoFotos, setProcesandoFotos] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [progreso, setProgreso] = useState(''); // feedback durante el guardado
   const sigApiRef = useRef(null);
+  const draftCargadoRef = useRef(false);
 
   // Clave estable de la selección (ids de proyecto). Evita que un re-render del
   // padre que recrea el array `proyectos` reinicie el formulario: al tomar la foto,
@@ -105,15 +108,33 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
   // cambiaba la identidad de `proyectos` y borraba nombre/comentarios/foto.
   const proyectosKey = proyectos.map((p) => p.id).join('|');
 
+  // Borrador en sessionStorage: al abrir la cámara el OS puede matar la
+  // pestaña y recargar la página; sin esto se perdía lo capturado. Solo texto
+  // (las fotos se retoman; dataURLs reventarían la cuota en móviles).
+  const draftKey = `entrega_masiva_draft_${proyectosKey}`;
+
+  useEffect(() => {
+    if (!open || !draftCargadoRef.current) return;
+    try {
+      sessionStorage.setItem(draftKey, JSON.stringify({ recibe, comentarios }));
+    } catch { /* cuota llena: seguir sin borrador */ }
+  }, [open, draftKey, recibe, comentarios]);
+
   // Cargar pendiente de cada proyecto al abrir (o si cambia el conjunto de proyectos)
   useEffect(() => {
-    if (!open) return;
+    if (!open) { draftCargadoRef.current = false; return; }
     let cancelled = false;
     const init = {};
     proyectos.forEach((p) => { init[p.id] = { rows: [], loading: true, tipo: 'completa', cantidades: {} }; });
     setPorProyecto(init);
     setRecibe(''); setComentarios(''); setFotoFiles([]);
     setFotoPreviews((prev) => { prev.forEach((p) => URL.revokeObjectURL(p.url)); return []; });
+    try {
+      const d = JSON.parse(sessionStorage.getItem(draftKey) || 'null');
+      if (d?.recibe) setRecibe(d.recibe);
+      if (d?.comentarios) setComentarios(d.comentarios);
+    } catch { /* borrador corrupto: ignorar */ }
+    draftCargadoRef.current = true;
 
     (async () => {
       for (const p of proyectos) {
@@ -132,22 +153,34 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
   }, [open, proyectosKey]);
 
   const setTipo = useCallback((pid, tipo) =>
-    setPorProyecto((prev) => ({ ...prev, [pid]: { ...prev[pid], tipo } })), []);
+    setPorProyecto((prev) => (prev[pid] ? { ...prev, [pid]: { ...prev[pid], tipo } } : prev)), []);
   const setCantidades = useCallback((pid, updater) =>
-    setPorProyecto((prev) => ({ ...prev, [pid]: { ...prev[pid], cantidades: typeof updater === 'function' ? updater(prev[pid].cantidades) : updater } })), []);
+    setPorProyecto((prev) => {
+      const st = prev[pid];
+      if (!st) return prev; // el estado del proyecto aún no se inicializa
+      return { ...prev, [pid]: { ...st, cantidades: typeof updater === 'function' ? updater(st.cantidades) : updater } };
+    }), []);
 
   // Permite tomar foto (cámara) o elegir de la galería, una o varias a la vez.
   // Se acumulan: cada selección se agrega a las ya cargadas.
-  const onFoto = (e) => {
+  const onFoto = async (e) => {
     const files = Array.from(e.target.files || []).filter((f) => f.type.startsWith('image/'));
-    if (files.length === 0) return;
-    setFotoFiles((prev) => [...prev, ...files]);
-    setFotoPreviews((prev) => [
-      ...prev,
-      ...files.map((f, i) => ({ id: `${f.name}-${f.size}-${Date.now()}-${i}`, url: URL.createObjectURL(f) })),
-    ]);
     // limpiar el input para poder volver a seleccionar el mismo archivo
     e.target.value = '';
+    if (files.length === 0) return;
+    setProcesandoFotos(true);
+    try {
+      for (const [i, f] of files.entries()) {
+        const comprimida = await compressEntregaFoto(f);
+        setFotoFiles((prev) => [...prev, comprimida]);
+        setFotoPreviews((prev) => [
+          ...prev,
+          { id: `${comprimida.name}-${comprimida.size}-${Date.now()}-${i}`, url: URL.createObjectURL(comprimida) },
+        ]);
+      }
+    } finally {
+      setProcesandoFotos(false);
+    }
   };
 
   const removeFoto = (idx) => {
@@ -195,7 +228,8 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
       // Subir foto(s) y firma UNA sola vez (carpeta del primer proyecto)
       const refId = proyectosPayload[0].proyecto_id;
       const fotoUrls = [];
-      for (const f of fotoFiles) {
+      for (const [i, f] of fotoFiles.entries()) {
+        setProgreso(`Subiendo foto ${i + 1} de ${fotoFiles.length}…`);
         const url = await uploadEntregaImage(f, refId, sanitizeFilename);
         if (url) fotoUrls.push(url);
       }
@@ -203,6 +237,7 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
       // 1 foto → URL simple (retrocompatible); varias → JSON de URLs en el mismo campo.
       const fotoUrl = fotoUrls.length === 1 ? fotoUrls[0] : JSON.stringify(fotoUrls);
 
+      setProgreso('Subiendo firma…');
       const dataUrl = sig.toDataURL();
       if (!dataUrl) throw new Error('No se pudo leer la firma.');
       const blob = await (await fetch(dataUrl)).blob();
@@ -219,8 +254,10 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
         proyectos: proyectosPayload.map(({ proyecto_id, cotizacion_id, items }) => ({ proyecto_id, cotizacion_id, items })),
       };
 
+      setProgreso('Registrando entrega…');
       const { data, error } = await supabase.rpc('registrar_entrega_masiva', { payload });
       if (error) throw new Error(error.message);
+      try { sessionStorage.removeItem(draftKey); } catch { /* sin borrador que limpiar */ }
 
       // Notificar Telegram por cada proyecto que quedó completo
       const completos = (data?.entregas || []).filter((e) => e.completo);
@@ -240,6 +277,7 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
       toast({ variant: 'destructive', title: 'Error al guardar', description: err?.message ?? 'No se pudo completar.' });
     } finally {
       setSaving(false);
+      setProgreso('');
     }
   };
 
@@ -293,6 +331,11 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
                 </label>
               </div>
               <p className="text-[11px] text-gray-500">Toma una foto con la cámara o elige una o varias de la galería.</p>
+              {procesandoFotos && (
+                <p className="flex items-center gap-2 text-sm text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Procesando fotos…
+                </p>
+              )}
               {fotoPreviews.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {fotoPreviews.map((p, idx) => (
@@ -319,6 +362,9 @@ export default function EntregaMasivaModal({ open, onOpenChange, proyectos = [],
         </div>
 
         <DialogFooter className="gap-2">
+          {saving && progreso ? (
+            <p className="flex items-center gap-2 self-center text-sm text-gray-600">{progreso}</p>
+          ) : null}
           <DialogClose asChild><Button variant="outline" disabled={saving}>Cancelar</Button></DialogClose>
           <Button onClick={handleSave} disabled={saving}
             className={`gap-2 bg-teal-600 hover:bg-teal-700 ${isMobile ? 'h-12 text-base' : ''}`}>

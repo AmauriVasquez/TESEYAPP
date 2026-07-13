@@ -48,13 +48,22 @@ class ErrorBoundary extends React.Component {
           <p className="text-gray-600 text-center max-w-md mb-6">
             Revisa la consola del navegador (F12) para ver más detalles del problema.
           </p>
-          <Button
-            onClick={this.handleRetry}
-            className="gap-2 bg-blue-600 hover:bg-blue-700"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Reintentar
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              onClick={this.handleRetry}
+              className="gap-2 bg-blue-600 hover:bg-blue-700"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Reintentar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => window.location.reload()}
+              className="gap-2"
+            >
+              Recargar página
+            </Button>
+          </div>
         </div>
       );
     }
