@@ -16,8 +16,18 @@ export default function SignaturePad({ open, className, apiRef, tall = false }) 
     const w = parent?.clientWidth || 400;
     const h = tall ? 192 : 160;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(w * dpr);
-    canvas.height = Math.floor(h * dpr);
+    const targetW = Math.floor(w * dpr);
+    const targetH = Math.floor(h * dpr);
+    // Reasignar canvas.width/height siempre borra el bitmap, aunque sea el mismo
+    // valor; en móvil el ResizeObserver dispara por reflows ajenos (barra de
+    // direcciones, teclado) y borraba la firma a medio trazo. Sin cambio real, no tocar.
+    if (canvas.width === targetW && canvas.height === targetH) {
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      return;
+    }
+    canvas.width = targetW;
+    canvas.height = targetH;
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
     const ctx = canvas.getContext('2d');
