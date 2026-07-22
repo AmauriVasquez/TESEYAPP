@@ -283,12 +283,20 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
       if (tipo === 'pc') {
           const producto = productosCliente.find(p => p.id.toString() === rawId);
           if (producto) {
+              const servicioAsociado = producto.servicio_id
+                  ? serviciosCatalogo.find(s => s.id === producto.servicio_id)
+                  : null;
+              const observacionesCatalogo = [
+                  servicioAsociado ? `Servicio: ${servicioAsociado.descripcion}` : null,
+                  producto.observaciones || null,
+              ].filter(Boolean).join(' — ');
               setNewItem(prev => ({
                   ...prev,
                   descripcion: producto.descripcion,
                   precio_unitario: producto.precio_unitario,
                   unidad: producto.unidad || prev.unidad,
                   cantidad: prev.cantidad || '1',
+                  observaciones: observacionesCatalogo,
                   producto_cliente_id: producto.id,
               }));
           }

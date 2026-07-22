@@ -6,6 +6,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Search, Plus, Edit, Trash2, Loader2, History } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
@@ -20,12 +21,13 @@ function generarPrefijo(nombre) {
   return soloLetras.slice(0, 3) || 'GEN';
 }
 
-const emptyForm = { codigo_cliente: '', codigo_interno: '', descripcion: '', unidad: '', precio_unitario: '', material_id: '' };
+const emptyForm = { codigo_cliente: '', codigo_interno: '', descripcion: '', observaciones: '', unidad: '', precio_unitario: '', material_id: '', servicio_id: '' };
 
 const ProductosCliente = () => {
   const { toast } = useToast();
   const [clientes, setClientes] = useState([]);
   const [materiales, setMateriales] = useState([]);
+  const [servicios, setServicios] = useState([]);
   const [clienteId, setClienteId] = useState(null);
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -39,9 +41,10 @@ const ProductosCliente = () => {
 
   useEffect(() => {
     (async () => {
-      const [clientesRes, materialesRes] = await Promise.all([
+      const [clientesRes, materialesRes, serviciosRes] = await Promise.all([
         supabase.from('clientes').select('id, nombre, razon_social').order('nombre'),
         supabase.from('materiales').select('id, descripcion').order('descripcion'),
+        supabase.from('catalogo_servicios').select('id, descripcion').order('descripcion'),
       ]);
       if (clientesRes.error) {
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar los clientes.' });
@@ -49,6 +52,7 @@ const ProductosCliente = () => {
         setClientes(clientesRes.data || []);
       }
       if (!materialesRes.error) setMateriales(materialesRes.data || []);
+      if (!serviciosRes.error) setServicios(serviciosRes.data || []);
     })();
   }, [toast]);
 
@@ -75,6 +79,7 @@ const ProductosCliente = () => {
 
   const clientesOptions = clientes.map((c) => ({ value: c.id.toString(), label: c.nombre }));
   const materialesById = useMemo(() => Object.fromEntries(materiales.map((m) => [m.id, m.descripcion])), [materiales]);
+  const serviciosById = useMemo(() => Object.fromEntries(servicios.map((s) => [s.id, s.descripcion])), [servicios]);
 
   const filteredProductos = useMemo(() => {
     if (!searchTerm) return productos;
@@ -102,9 +107,11 @@ const ProductosCliente = () => {
       codigo_cliente: producto.codigo_cliente || '',
       codigo_interno: producto.codigo_interno,
       descripcion: producto.descripcion,
+      observaciones: producto.observaciones || '',
       unidad: producto.unidad || '',
       precio_unitario: producto.precio_unitario ?? '',
       material_id: producto.material_id ? producto.material_id.toString() : '',
+      servicio_id: producto.servicio_id ? producto.servicio_id.toString() : '',
     });
     setIsDialogOpen(true);
   };
@@ -132,9 +139,11 @@ const ProductosCliente = () => {
       codigo_cliente: formData.codigo_cliente || null,
       codigo_interno: formData.codigo_interno,
       descripcion: formData.descripcion,
+      observaciones: formData.observaciones || null,
       unidad: formData.unidad || null,
       precio_unitario: parseFloat(formData.precio_unitario),
       material_id: formData.material_id ? parseInt(formData.material_id, 10) : null,
+      servicio_id: formData.servicio_id ? parseInt(formData.servicio_id, 10) : null,
     };
     try {
       if (currentProducto) {
@@ -208,6 +217,7 @@ const ProductosCliente = () => {
                     <TableHead>Descripción</TableHead>
                     <TableHead className="w-[100px]">Unidad</TableHead>
                     <TableHead className="w-[150px]">Material</TableHead>
+                    <TableHead className="w-[150px]">Servicio</TableHead>
                     <TableHead className="text-right w-[110px]">Precio</TableHead>
                     <TableHead className="w-[130px] text-right">Acciones</TableHead>
                   </TableRow>
@@ -218,9 +228,13 @@ const ProductosCliente = () => {
                       <TableRow key={producto.id} className="hover:bg-gray-50">
                         <TableCell className="font-mono text-sm font-medium text-gray-600">{producto.codigo_interno}</TableCell>
                         <TableCell className="font-mono text-sm">{producto.codigo_cliente || '-'}</TableCell>
-                        <TableCell className="font-medium">{producto.descripcion}</TableCell>
+                        <TableCell className="font-medium">
+                          {producto.descripcion}
+                          {producto.observaciones && <div className="text-xs text-gray-500 italic mt-1">Obs: {producto.observaciones}</div>}
+                        </TableCell>
                         <TableCell>{producto.unidad || '-'}</TableCell>
                         <TableCell className="text-sm text-gray-600">{producto.material_id ? (materialesById[producto.material_id] || '-') : '-'}</TableCell>
+                        <TableCell className="text-sm text-gray-600">{producto.servicio_id ? (serviciosById[producto.servicio_id] || '-') : '-'}</TableCell>
                         <TableCell className="text-right font-mono">${Number(producto.precio_unitario).toFixed(2)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -239,7 +253,7 @@ const ProductosCliente = () => {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-gray-500">Este cliente no tiene productos registrados.</TableCell>
+                      <TableCell colSpan={8} className="text-center py-12 text-gray-500">Este cliente no tiene productos registrados.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -267,6 +281,10 @@ const ProductosCliente = () => {
               <Label htmlFor="descripcion">Descripción <span className="text-red-500">*</span></Label>
               <Input id="descripcion" value={formData.descripcion} onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })} required />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="observaciones">Observaciones</Label>
+              <Textarea id="observaciones" value={formData.observaciones} onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })} placeholder="Cualquier comentario sobre esta pieza..." rows={2} />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="unidad">Unidad</Label>
@@ -280,16 +298,29 @@ const ProductosCliente = () => {
                 </div>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="material">Material (opcional)</Label>
-              <Select value={formData.material_id} onValueChange={(v) => setFormData({ ...formData, material_id: v })}>
-                <SelectTrigger id="material"><SelectValue placeholder="Sin material asignado" /></SelectTrigger>
-                <SelectContent>
-                  {materiales.map((m) => (
-                    <SelectItem key={m.id} value={m.id.toString()}>{m.descripcion}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="material">Material (opcional)</Label>
+                <Select value={formData.material_id} onValueChange={(v) => setFormData({ ...formData, material_id: v })}>
+                  <SelectTrigger id="material"><SelectValue placeholder="Sin material asignado" /></SelectTrigger>
+                  <SelectContent>
+                    {materiales.map((m) => (
+                      <SelectItem key={m.id} value={m.id.toString()}>{m.descripcion}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="servicio">Servicio (opcional)</Label>
+                <Select value={formData.servicio_id} onValueChange={(v) => setFormData({ ...formData, servicio_id: v })}>
+                  <SelectTrigger id="servicio"><SelectValue placeholder="Sin servicio asignado" /></SelectTrigger>
+                  <SelectContent>
+                    {servicios.map((s) => (
+                      <SelectItem key={s.id} value={s.id.toString()}>{s.descripcion}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
