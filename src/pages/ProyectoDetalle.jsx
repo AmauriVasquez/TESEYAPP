@@ -1399,7 +1399,7 @@ const ProyectoDetalle = () => {
           modoProyecto={true}
           onEditar={(cotizacion) => {
             setShowQuotePreview(false);
-            navigate('/cotizaciones', { state: { openCotizacionId: cotizacion?.id } });
+            navigate('/cotizaciones', { state: { openCotizacionId: cotizacion?.id, action: 'editar' } });
           }}
           onCrearNuevaVersion={(cotizacion) => {
             setShowQuotePreview(false);

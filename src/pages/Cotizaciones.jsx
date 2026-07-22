@@ -227,7 +227,11 @@ const Cotizaciones = () => {
       return;
     }
     setSelectedCotizacion(c);
-    setDialogOpen(true);
+    if (action === 'editar') {
+      setDialogOpen(true);
+    } else {
+      setPrintDialogOpen(true);
+    }
     navigate(location.pathname, { replace: true, state: {} });
   }, [location.state?.openCotizacionId, location.state?.action, cotizaciones, navigate, location.pathname]);
 
