@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CatalogoUnidades from './CatalogoUnidades';
+import ProductosCliente from './ProductosCliente';
 
 const CatalogoServicios = () => {
   const { toast } = useToast();
@@ -230,6 +231,7 @@ const CatalogoServicios = () => {
     <Tabs defaultValue="servicios" className="w-full">
       <TabsList className="mb-4">
         <TabsTrigger value="servicios">Listado de Servicios</TabsTrigger>
+        <TabsTrigger value="productos-cliente">Productos por Cliente</TabsTrigger>
         <TabsTrigger value="unidades">Configuración de Unidades</TabsTrigger>
       </TabsList>
 
@@ -400,6 +402,10 @@ const CatalogoServicios = () => {
             </form>
             </DialogContent>
         </Dialog>
+      </TabsContent>
+
+      <TabsContent value="productos-cliente">
+        <ProductosCliente />
       </TabsContent>
 
       <TabsContent value="unidades">
