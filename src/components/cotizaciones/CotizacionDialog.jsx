@@ -395,7 +395,8 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
             cantidad: parseFloat(item.cantidad),
             precio_unitario: parseFloat(item.precio_unitario),
             unidad: item.unidad,
-            observaciones: item.observaciones
+            observaciones: item.observaciones,
+            producto_cliente_id: item.producto_cliente_id ?? null,
         }));
 
         const { error: itemsError } = await supabase
