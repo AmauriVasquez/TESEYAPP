@@ -11,9 +11,7 @@ import { Search, Plus, Edit, Trash2, Loader2, History } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/customSupabaseClient';
 import { Combobox } from '@/components/ui/combobox';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+import { MultiCombobox } from '@/components/ui/multi-combobox';
 import HistorialProductoClienteDialog from './HistorialProductoClienteDialog';
 
 function generarPrefijo(nombre) {
@@ -21,7 +19,7 @@ function generarPrefijo(nombre) {
   return soloLetras.slice(0, 3) || 'GEN';
 }
 
-const emptyForm = { codigo_cliente: '', codigo_interno: '', descripcion: '', observaciones: '', unidad: '', precio_unitario: '', material_id: '', servicio_id: '' };
+const emptyForm = { codigo_cliente: '', codigo_interno: '', descripcion: '', observaciones: '', unidad: '', precio_unitario: '', material_ids: [], servicio_ids: [] };
 
 const ProductosCliente = () => {
   const { toast } = useToast();
@@ -43,8 +41,8 @@ const ProductosCliente = () => {
     (async () => {
       const [clientesRes, materialesRes, serviciosRes] = await Promise.all([
         supabase.from('clientes').select('id, nombre, razon_social').order('nombre'),
-        supabase.from('materiales').select('id, descripcion').order('descripcion'),
-        supabase.from('catalogo_servicios').select('id, descripcion').order('descripcion'),
+        supabase.from('materiales').select('id, clave, descripcion').order('descripcion'),
+        supabase.from('catalogo_servicios').select('id, codigo, descripcion').order('descripcion'),
       ]);
       if (clientesRes.error) {
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar los clientes.' });
@@ -78,8 +76,12 @@ const ProductosCliente = () => {
   }, [clienteId]);
 
   const clientesOptions = clientes.map((c) => ({ value: c.id.toString(), label: c.nombre }));
-  const materialesById = useMemo(() => Object.fromEntries(materiales.map((m) => [m.id, m.descripcion])), [materiales]);
-  const serviciosById = useMemo(() => Object.fromEntries(servicios.map((s) => [s.id, s.descripcion])), [servicios]);
+  const materialLabel = (m) => (m.clave ? `${m.clave} - ${m.descripcion}` : m.descripcion);
+  const servicioLabel = (s) => (s.codigo ? `${s.codigo} - ${s.descripcion}` : s.descripcion);
+  const materialesOptions = materiales.map((m) => ({ value: m.id.toString(), label: materialLabel(m) }));
+  const serviciosOptions = servicios.map((s) => ({ value: s.id.toString(), label: servicioLabel(s) }));
+  const materialesById = useMemo(() => Object.fromEntries(materiales.map((m) => [m.id, materialLabel(m)])), [materiales]);
+  const serviciosById = useMemo(() => Object.fromEntries(servicios.map((s) => [s.id, servicioLabel(s)])), [servicios]);
 
   const filteredProductos = useMemo(() => {
     if (!searchTerm) return productos;
@@ -110,8 +112,8 @@ const ProductosCliente = () => {
       observaciones: producto.observaciones || '',
       unidad: producto.unidad || '',
       precio_unitario: producto.precio_unitario ?? '',
-      material_id: producto.material_id ? producto.material_id.toString() : '',
-      servicio_id: producto.servicio_id ? producto.servicio_id.toString() : '',
+      material_ids: (producto.material_ids || []).map((id) => id.toString()),
+      servicio_ids: (producto.servicio_ids || []).map((id) => id.toString()),
     });
     setIsDialogOpen(true);
   };
@@ -142,8 +144,8 @@ const ProductosCliente = () => {
       observaciones: formData.observaciones || null,
       unidad: formData.unidad || null,
       precio_unitario: parseFloat(formData.precio_unitario),
-      material_id: formData.material_id ? parseInt(formData.material_id, 10) : null,
-      servicio_id: formData.servicio_id ? parseInt(formData.servicio_id, 10) : null,
+      material_ids: formData.material_ids.map((id) => parseInt(id, 10)),
+      servicio_ids: formData.servicio_ids.map((id) => parseInt(id, 10)),
     };
     try {
       if (currentProducto) {
@@ -233,8 +235,8 @@ const ProductosCliente = () => {
                           {producto.observaciones && <div className="text-xs text-gray-500 italic mt-1">Obs: {producto.observaciones}</div>}
                         </TableCell>
                         <TableCell>{producto.unidad || '-'}</TableCell>
-                        <TableCell className="text-sm text-gray-600">{producto.material_id ? (materialesById[producto.material_id] || '-') : '-'}</TableCell>
-                        <TableCell className="text-sm text-gray-600">{producto.servicio_id ? (serviciosById[producto.servicio_id] || '-') : '-'}</TableCell>
+                        <TableCell className="text-sm text-gray-600">{(producto.material_ids || []).map((id) => materialesById[id]).filter(Boolean).join(', ') || '-'}</TableCell>
+                        <TableCell className="text-sm text-gray-600">{(producto.servicio_ids || []).map((id) => serviciosById[id]).filter(Boolean).join(', ') || '-'}</TableCell>
                         <TableCell className="text-right font-mono">${Number(producto.precio_unitario).toFixed(2)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -300,26 +302,26 @@ const ProductosCliente = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="material">Material (opcional)</Label>
-                <Select value={formData.material_id} onValueChange={(v) => setFormData({ ...formData, material_id: v })}>
-                  <SelectTrigger id="material"><SelectValue placeholder="Sin material asignado" /></SelectTrigger>
-                  <SelectContent>
-                    {materiales.map((m) => (
-                      <SelectItem key={m.id} value={m.id.toString()}>{m.descripcion}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="material">Materiales (opcional)</Label>
+                <MultiCombobox
+                  options={materialesOptions}
+                  values={formData.material_ids}
+                  onChange={(v) => setFormData({ ...formData, material_ids: v })}
+                  placeholder="Sin material asignado"
+                  searchPlaceholder="Buscar material..."
+                  notFoundMessage="No se encontró el material"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="servicio">Servicio (opcional)</Label>
-                <Select value={formData.servicio_id} onValueChange={(v) => setFormData({ ...formData, servicio_id: v })}>
-                  <SelectTrigger id="servicio"><SelectValue placeholder="Sin servicio asignado" /></SelectTrigger>
-                  <SelectContent>
-                    {servicios.map((s) => (
-                      <SelectItem key={s.id} value={s.id.toString()}>{s.descripcion}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="servicio">Servicios (opcional)</Label>
+                <MultiCombobox
+                  options={serviciosOptions}
+                  values={formData.servicio_ids}
+                  onChange={(v) => setFormData({ ...formData, servicio_ids: v })}
+                  placeholder="Sin servicio asignado"
+                  searchPlaceholder="Buscar servicio..."
+                  notFoundMessage="No se encontró el servicio"
+                />
               </div>
             </div>
             <DialogFooter className="pt-4">
