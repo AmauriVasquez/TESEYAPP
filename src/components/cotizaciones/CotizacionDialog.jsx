@@ -37,6 +37,7 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
   const [usuarios, setUsuarios] = useState([]);
   const [serviciosCatalogo, setServiciosCatalogo] = useState([]);
   const [unidadesCatalogo, setUnidadesCatalogo] = useState([]);
+  const [productosCliente, setProductosCliente] = useState([]);
   
   // UI State
   const [loading, setLoading] = useState(true);
@@ -50,7 +51,8 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
     cantidad: '',
     precio_unitario: '',
     unidad: 'pza',
-    observaciones: ''
+    observaciones: '',
+    producto_cliente_id: null,
   });
   
   const [selectedServiceId, setSelectedServiceId] = useState('');
@@ -199,10 +201,33 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
         setFormData(null);
         setNextFolio('');
         setItems([]);
-        setNewItem({ descripcion: '', cantidad: '', precio_unitario: '', unidad: 'pza', observaciones: '' });
+        setNewItem({ descripcion: '', cantidad: '', precio_unitario: '', unidad: 'pza', observaciones: '', producto_cliente_id: null });
         setSelectedServiceId('');
     }
   }, [open, fetchData]);
+
+  useEffect(() => {
+    if (!open || !formData?.cliente_id) {
+      setProductosCliente([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('catalogo_productos_cliente')
+        .select('*')
+        .eq('cliente_id', formData.cliente_id)
+        .order('descripcion');
+      if (cancelled) return;
+      if (error) {
+        console.error('Error cargando productos del cliente:', error);
+        setProductosCliente([]);
+      } else {
+        setProductosCliente(data || []);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, formData?.cliente_id]);
 
   // Calculations
   const { subtotalBruto, descuentoMonto, subtotalNeto, iva, total } = useMemo(() => {
@@ -228,7 +253,7 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
     }
     
     setItems(prev => [...prev, { ...newItem, id: Date.now() }]); // Temporary ID for UI key
-    setNewItem({ descripcion: '', cantidad: '', precio_unitario: '', unidad: 'pza', observaciones: '' });
+    setNewItem({ descripcion: '', cantidad: '', precio_unitario: '', unidad: 'pza', observaciones: '', producto_cliente_id: null });
     setSelectedServiceId('');
   };
 
@@ -245,34 +270,54 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
       precio_unitario: String(item.precio_unitario ?? ''),
       unidad: item.unidad ?? 'pza',
       observaciones: item.observaciones ?? '',
+      producto_cliente_id: item.producto_cliente_id ?? null,
     });
     setItems(prev => prev.filter((_, i) => i !== indexToEdit));
     setSelectedServiceId('');
   };
 
-  const handleServiceSelect = (serviceId) => {
-      setSelectedServiceId(serviceId);
-      const service = serviciosCatalogo.find(s => s.id.toString() === serviceId.toString());
-      if (service) {
-          setNewItem(prev => ({
-              ...prev,
-              descripcion: service.descripcion,
-              precio_unitario: service.precio_unitario,
-              unidad: service.unidad,
-              // Keep existing quantity or default to 1 if empty
-              cantidad: prev.cantidad || '1'
-          }));
+  const handleServiceSelect = (optionValue) => {
+      setSelectedServiceId(optionValue);
+      if (!optionValue) return;
+      const [tipo, rawId] = optionValue.split(':');
+      if (tipo === 'pc') {
+          const producto = productosCliente.find(p => p.id.toString() === rawId);
+          if (producto) {
+              setNewItem(prev => ({
+                  ...prev,
+                  descripcion: producto.descripcion,
+                  precio_unitario: producto.precio_unitario,
+                  unidad: producto.unidad || prev.unidad,
+                  cantidad: prev.cantidad || '1',
+                  producto_cliente_id: producto.id,
+              }));
+          }
+      } else if (tipo === 'sv') {
+          const service = serviciosCatalogo.find(s => s.id.toString() === rawId);
+          if (service) {
+              setNewItem(prev => ({
+                  ...prev,
+                  descripcion: service.descripcion,
+                  precio_unitario: service.precio_unitario,
+                  unidad: service.unidad,
+                  cantidad: prev.cantidad || '1',
+                  producto_cliente_id: null,
+              }));
+          }
       }
   };
-  
+
   // When description is manually changed, clear selection if it doesn't match
   const handleDescriptionChange = (val) => {
       setNewItem(prev => ({ ...prev, descripcion: val }));
       // Optional: Check if new val matches selected service, if not clear selected ID
       // We'll just clear it to indicate "Custom" mode
       if (selectedServiceId) {
-          const currentService = serviciosCatalogo.find(s => s.id.toString() === selectedServiceId.toString());
-          if (currentService && currentService.descripcion !== val) {
+          const [tipo, rawId] = selectedServiceId.split(':');
+          const current = tipo === 'pc'
+              ? productosCliente.find(p => p.id.toString() === rawId)
+              : serviciosCatalogo.find(s => s.id.toString() === rawId);
+          if (current && current.descripcion !== val) {
               setSelectedServiceId('');
           }
       }
@@ -404,10 +449,24 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
 
 
   // Enhanced label with Code
-  const serviciosOptions = serviciosCatalogo.map(s => ({ 
-      value: s.id.toString(), 
-      label: s.codigo ? `${s.codigo} - ${s.descripcion}` : s.descripcion 
+  const productosClienteOptions = productosCliente.map(p => ({
+      value: `pc:${p.id}`,
+      label: `${p.codigo_interno}${p.codigo_cliente ? ' / ' + p.codigo_cliente : ''} - ${p.descripcion}`,
   }));
+
+  const serviciosOptions = serviciosCatalogo.map(s => ({
+      value: `sv:${s.id}`,
+      label: s.codigo ? `${s.codigo} - ${s.descripcion}` : s.descripcion
+  }));
+
+  const catalogoOptions = [...productosClienteOptions, ...serviciosOptions];
+
+  const productoClienteSeleccionado = selectedServiceId?.startsWith('pc:')
+      ? productosCliente.find(p => p.id.toString() === selectedServiceId.split(':')[1]) || null
+      : null;
+
+  const precioDistintoDelCatalogo = productoClienteSeleccionado
+      && parseFloat(newItem.precio_unitario || 0) !== parseFloat(productoClienteSeleccionado.precio_unitario || 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -558,7 +617,7 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
                         <div className="grid grid-cols-1 gap-2">
                              <Label className="text-xs font-semibold text-blue-600">Cargar del Catálogo (Opcional)</Label>
                              <Combobox
-                                options={serviciosOptions}
+                                options={catalogoOptions}
                                 value={selectedServiceId}
                                 onChange={handleServiceSelect}
                                 placeholder="Buscar por código o descripción..."
@@ -603,12 +662,17 @@ const CotizacionDialog = ({ open, onOpenChange, cotizacion, initialTemplate, onS
                             </div>
                             <div className="col-span-6 md:col-span-2">
                                 <Label className="text-xs">Precio Unitario</Label>
-                                <Input 
-                                    type="number" 
-                                    value={newItem.precio_unitario} 
+                                <Input
+                                    type="number"
+                                    value={newItem.precio_unitario}
                                     onChange={e => setNewItem({...newItem, precio_unitario: e.target.value})}
                                     placeholder="$0.00"
                                 />
+                                {productoClienteSeleccionado && precioDistintoDelCatalogo && (
+                                    <p className="text-xs text-amber-600 mt-1">
+                                        Precio distinto al catálogo (${Number(productoClienteSeleccionado.precio_unitario).toFixed(2)})
+                                    </p>
+                                )}
                             </div>
                             <div className="col-span-6 md:col-span-2">
                                 <Button onClick={handleAddItem} className="w-full bg-blue-600 hover:bg-blue-700">
