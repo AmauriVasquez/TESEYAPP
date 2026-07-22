@@ -13,6 +13,7 @@ import { supabase } from '@/lib/customSupabaseClient';
 import { useToast } from '@/components/ui/use-toast';
 import ClienteResumenCards from '@/components/clientes/ClienteResumenCards';
 import ClienteCotizacionesTabla from '@/components/clientes/ClienteCotizacionesTabla';
+import SeleccionarFormatoCotizacionDialog from '@/components/cotizaciones/SeleccionarFormatoCotizacionDialog';
 
 const InfoRow = ({ icon: Icon, label, value }) => (
   <div className="flex gap-3 py-3 border-b border-gray-100 last:border-0">
@@ -34,6 +35,7 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit, onEstadoCuenta, i
   const [resumen, setResumen] = useState(null);
   const [resumenLoading, setResumenLoading] = useState(false);
   const [resumenError, setResumenError] = useState(false);
+  const [previewCotizacionId, setPreviewCotizacionId] = useState(null);
 
   const fetchCotizaciones = useCallback(async () => {
     if (!cliente?.id) return;
@@ -194,8 +196,7 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit, onEstadoCuenta, i
               loading={loadingCotizaciones}
               error={cotizacionesError}
               onNavigateCotizacion={(id) => {
-                onOpenChange(false);
-                navigate('/cotizaciones', { state: { openCotizacionId: id } });
+                setPreviewCotizacionId(id);
               }}
               onNavigateProyecto={(id) => {
                 onOpenChange(false);
@@ -212,6 +213,14 @@ const ClienteDetalle = ({ open, onOpenChange, cliente, onEdit, onEstadoCuenta, i
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      <SeleccionarFormatoCotizacionDialog
+        open={previewCotizacionId != null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setPreviewCotizacionId(null);
+        }}
+        cotizacionId={previewCotizacionId}
+      />
     </Dialog>
   );
 };
